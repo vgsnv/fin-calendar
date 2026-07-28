@@ -1,0 +1,213 @@
+:root {
+  --navy: #2A2A72;
+  --blue: #009FFD;
+  --orange: #FFA400;
+  --green: #A8CC7B;
+  --bg: #FFFFFF;
+  --tint: #EAF6FF;
+  --long: #FFF3D6;
+  --leap: #FFE7B8;
+  --ink: #1A1A1A;
+  --muted: #B0B0B0;
+  --line: #E2E2E2;
+  --col: 40px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: "SF Pro Text", -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  padding: 24px 28px;
+}
+
+/* ── управление ─────────────────────────── */
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: #555;
+}
+.year-box { display: flex; align-items: center; gap: 6px; }
+.year-label {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--navy);
+  min-width: 64px;
+  text-align: center;
+}
+.year-btn {
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--navy);
+  width: 26px; height: 26px;
+  border-radius: 6px;
+  font-size: 15px;
+  cursor: pointer;
+}
+.year-btn:hover { background: var(--tint); }
+.mode-box {
+  display: flex; gap: 2px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 2px;
+}
+.mode {
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #555;
+}
+.mode:has(input:checked) { background: var(--navy); color: #fff; }
+.mode input { display: none; }
+.week.short { background: var(--tint); }
+.controls label { display: flex; align-items: center; gap: 6px; }
+.controls input {
+  width: 52px;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: inherit;
+  color: var(--ink);
+}
+.hint { color: var(--muted); }
+
+/* ── легенда ────────────────────────────── */
+.legend {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: #555;
+  margin-bottom: 14px;
+}
+.dot {
+  display: inline-block;
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  vertical-align: -1px;
+  margin-right: 4px;
+}
+.d1 { background: var(--orange); }
+.d2 { background: var(--blue); }
+.d3 { background: var(--navy); }
+.dn { border: 1.5px dashed var(--muted); }
+.swatch {
+  display: inline-block;
+  width: 11px; height: 11px;
+  border-radius: 3px;
+  vertical-align: -2px;
+  margin-right: 4px;
+  border: 1px solid var(--line);
+}
+.swatch.long { background: var(--long); }
+.swatch.leap { background: var(--leap); }
+.swatch.short { background: var(--tint); }
+
+/* ── полоса ─────────────────────────────── */
+.strip-wrap { overflow-x: auto; padding-bottom: 8px; }
+.strip { display: inline-flex; align-items: stretch; }
+
+/* левая колонка с днями недели */
+.gutter {
+  display: grid;
+  grid-template-rows: 22px 26px repeat(7, 26px);
+  position: sticky;
+  left: 0;
+  background: var(--bg);
+  z-index: 3;
+  padding-right: 8px;
+  border-right: 1px solid var(--line);
+}
+.gutter .cell {
+  font-size: 11px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 4px;
+  letter-spacing: 0.06em;
+}
+
+/* колонка-неделя */
+.week {
+  display: grid;
+  grid-template-rows: 22px 26px repeat(7, 26px);
+  width: var(--col);
+  position: relative;
+}
+.week.sprint-start { border-left: 2px solid var(--navy); }
+.week.month-start:not(.sprint-start) { border-left: 1px solid var(--line); }
+.week.long { background: var(--long); }
+.week.leap { background: var(--leap); }
+
+/* строка месяца */
+.mname {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.28em;
+  color: var(--navy);
+  white-space: nowrap;
+  overflow: visible;
+  display: flex;
+  align-items: center;
+  padding-left: 6px;
+  position: relative;
+  z-index: 2;
+}
+
+/* строка номеров: номер финнедели + номер спринта */
+.wnum {
+  font-size: 10px;
+  color: var(--muted);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 3px;
+  gap: 4px;
+}
+.snum {
+  color: var(--navy);
+  font-weight: 700;
+}
+
+/* клетка дня */
+.day {
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  position: relative;
+  font-variant-numeric: tabular-nums;
+}
+.day.weekend { color: var(--muted); }
+.day.first { font-weight: 700; }
+.day .pd {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+.pd.c1 { background: var(--orange); }
+.pd.c2 { background: var(--blue); }
+.pd.c3 { background: var(--navy); }
+.pd.nom { border: 1.5px dashed var(--muted); background: transparent; }
+
+.note {
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--muted);
+  max-width: 720px;
+  line-height: 1.5;
+}
+
+@media print {
+  .controls, .legend, .note { display: none; }
+  body { padding: 0; }
+  .strip-wrap { overflow: visible; }
+}

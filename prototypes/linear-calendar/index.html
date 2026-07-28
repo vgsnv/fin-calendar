@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Линейный календарь · фиксированная лента спринтов</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="controls">
+  <div class="year-box">
+    <button id="yearPrev" class="year-btn" aria-label="Предыдущий год">‹</button>
+    <span id="yearLabel" class="year-label">2027</span>
+    <button id="yearNext" class="year-btn" aria-label="Следующий год">›</button>
+  </div>
+  <div class="mode-box">
+    <label class="mode"><input type="radio" name="mode" value="own" checked> свой календарь</label>
+    <label class="mode"><input type="radio" name="mode" value="common"> общий</label>
+  </div>
+  <label>Приход 1 <input id="p1" type="number" min="0" max="28" value="5"></label>
+  <label>Приход 2 <input id="p2" type="number" min="0" max="28" value="20"></label>
+  <label>Приход 3 <input id="p3" type="number" min="0" max="28" value="0"></label>
+  <span class="hint">0 — прихода нет · выходной сдвигает выплату на пятницу</span>
+</header>
+
+<div class="legend">
+  <span><i class="dot d1"></i> приход 1</span>
+  <span><i class="dot d2"></i> приход 2</span>
+  <span><i class="dot d3"></i> приход 3</span>
+  <span><i class="dot dn"></i> номинал, если сдвинут</span>
+  <span><i class="swatch long"></i> длинный спринт</span>
+  <span><i class="swatch leap"></i> високосный спринт</span>
+</div>
+
+<main class="strip-wrap">
+  <div id="strip" class="strip"></div>
+</main>
+
+<footer class="note">
+  Свой календарь: старты спринтов идут за приходами — меняй даты и смотри, как перестраивается сетка.
+  Общий: фиксированная лента 2–2–2–2–2–3, одна на всех, — точки приходов двигаются, сетка стоит.
+  Граница финнедели — суббота; выходной сдвигает выплату на пятницу; праздники не учтены.
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>
