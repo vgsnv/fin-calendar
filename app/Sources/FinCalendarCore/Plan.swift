@@ -104,10 +104,17 @@ public struct Plan: Codable, Sendable {
     public var entryDate: CivilDate
     public var articles: [Article]
     public var confirmed: [ConfirmedLayout]
+    /// Отметки выдач (С16): старт финнедели → порция выдана. Память, не факты (П3).
+    public var issuedWeeks: Set<CivilDate>
+    /// Переключатели двух уведомлений (МП33), каждое отдельно.
+    public var notifyLayout: Bool
+    public var notifyIssue: Bool
 
     public init(namedWeek: Double, weekBoundary: Int, incomes: [PlannedIncome],
                 production: ProductionCalendar = .none, entryDate: CivilDate,
-                articles: [Article] = [], confirmed: [ConfirmedLayout] = []) {
+                articles: [Article] = [], confirmed: [ConfirmedLayout] = [],
+                issuedWeeks: Set<CivilDate> = [], notifyLayout: Bool = true,
+                notifyIssue: Bool = true) {
         self.namedWeek = namedWeek
         self.weekBoundary = weekBoundary
         self.incomes = incomes
@@ -115,6 +122,24 @@ public struct Plan: Codable, Sendable {
         self.entryDate = entryDate
         self.articles = articles
         self.confirmed = confirmed
+        self.issuedWeeks = issuedWeeks
+        self.notifyLayout = notifyLayout
+        self.notifyIssue = notifyIssue
+    }
+
+    // Новые поля читаются с умолчаниями — старые файлы хранилища остаются валидными.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        namedWeek = try c.decode(Double.self, forKey: .namedWeek)
+        weekBoundary = try c.decode(Int.self, forKey: .weekBoundary)
+        incomes = try c.decode([PlannedIncome].self, forKey: .incomes)
+        production = try c.decode(ProductionCalendar.self, forKey: .production)
+        entryDate = try c.decode(CivilDate.self, forKey: .entryDate)
+        articles = try c.decode([Article].self, forKey: .articles)
+        confirmed = try c.decode([ConfirmedLayout].self, forKey: .confirmed)
+        issuedWeeks = try c.decodeIfPresent(Set<CivilDate>.self, forKey: .issuedWeeks) ?? []
+        notifyLayout = try c.decodeIfPresent(Bool.self, forKey: .notifyLayout) ?? true
+        notifyIssue = try c.decodeIfPresent(Bool.self, forKey: .notifyIssue) ?? true
     }
 
     /// Собрано по статье из подтверждённых раскладок (взносы не возвращаются, П12, С4а).
@@ -163,6 +188,11 @@ public enum PlanEngine {
     public static func recompute(_ plan: Plan, today: CivilDate,
                                  horizonMonths: Int = 12,
                                  factOverrides: [String: Double] = [:]) -> HorizonRecommendation {
+        guard !plan.incomes.isEmpty else {
+            return HorizonRecommendation(
+                recommendation: Recommendation(weeks: [], contributions: [], freeMoney: [:], unmetNeeds: []),
+                occurrences: [], intentFinish: [:])
+        }
         let calendar = OwnCalendar(weekBoundary: plan.weekBoundary,
                                    anchors: plan.incomes.map(\.anchor),
                                    production: plan.production)

@@ -103,7 +103,7 @@ private struct DraftView: View {
                         .foregroundStyle(Theme.textMuted)
                 }
             }
-            Text("\(name(occurrence)) · \(occurrence.factDate.day) \(RU.monthsGen[occurrence.factDate.month - 1]) · черновик")
+            Text("\(model.incomeName(anchorDay: occurrence.anchorDay)) · \(occurrence.factDate.day) \(RU.monthsGen[occurrence.factDate.month - 1]) · черновик")
                 .font(.system(size: 12)).foregroundStyle(Theme.textMuted)
         }
     }
@@ -305,6 +305,3 @@ private struct SurplusSheet: View {
     }
 }
 
-private func name(_ occ: IncomeOccurrence) -> String {
-    occ.anchorDay == 5 ? "Аванс" : "Зарплата"
-}

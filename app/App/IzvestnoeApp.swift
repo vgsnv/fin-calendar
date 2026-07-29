@@ -6,8 +6,14 @@ struct IzvestnoeApp: App {
 
     var body: some Scene {
         WindowGroup {
-            TapeView()
-                .environment(model)
+            Group {
+                if model.needsOnboarding {
+                    OnboardingView()
+                } else {
+                    TapeView()
+                }
+            }
+            .environment(model)
         }
     }
 }

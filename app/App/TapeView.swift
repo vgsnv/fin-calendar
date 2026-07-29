@@ -4,7 +4,9 @@ import FinCalendarCore
 /// Лента — центр интерфейса (МП6, МП22–МП26): строка — финнеделя, спринты очерчены.
 struct TapeView: View {
     @Environment(AppModel.self) private var model
-    @State private var layoutTarget: LayoutTarget?
+    @State private var layoutTarget: SprintTarget?
+    @State private var detailTarget: SprintTarget?
+    @State private var showSettings = false
 
     var body: some View {
         let tape = TapeModel(model: model)
@@ -12,10 +14,10 @@ struct TapeView: View {
             VStack(spacing: 10) {
                 header(tape)
                 ForEach(tape.sprints) { sprint in
-                    SprintCard(sprint: sprint, tape: tape) {
-                        layoutTarget = LayoutTarget(occurrence: sprint.occurrence)
-                    }
-                    .id(sprint.id)
+                    SprintCard(sprint: sprint, tape: tape,
+                               openLayout: { layoutTarget = SprintTarget(occurrence: sprint.occurrence) },
+                               openDetail: { detailTarget = SprintTarget(occurrence: sprint.occurrence) })
+                        .id(sprint.id)
                 }
             }
             .padding(.horizontal, 12)
@@ -25,6 +27,12 @@ struct TapeView: View {
         .fullScreenCover(item: $layoutTarget) { target in
             LayoutSheetView(occurrence: target.occurrence)
         }
+        .sheet(item: $detailTarget) { target in
+            SprintDetailView(occurrence: target.occurrence)
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
+        }
     }
 
     private func header(_ tape: TapeModel) -> some View {
@@ -33,16 +41,18 @@ struct TapeView: View {
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(Theme.textMuted)
             Spacer()
-            Image(systemName: "gearshape")
-                .font(.system(size: 17))
-                .foregroundStyle(Theme.textMuted)
+            Button { showSettings = true } label: {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 17))
+                    .foregroundStyle(Theme.textMuted)
+            }
         }
         .padding(.horizontal, 8)
         .padding(.top, 8)
     }
 }
 
-private struct LayoutTarget: Identifiable {
+private struct SprintTarget: Identifiable {
     let occurrence: IncomeOccurrence
     var id: String { occurrence.id }
 }
@@ -51,6 +61,8 @@ struct SprintCard: View {
     let sprint: TapeModel.SprintVM
     let tape: TapeModel
     let openLayout: () -> Void
+    let openDetail: () -> Void
+    @Environment(AppModel.self) private var model
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -68,6 +80,7 @@ struct SprintCard: View {
                         .font(.system(size: 12))
                         .foregroundStyle(Theme.textMuted)
                 }
+                issueRow(week)
             }
             if sprint.blindNote {
                 Text("спринт идёт без раскладки — план слеп: выдач нет, взносы не собраны")
@@ -84,8 +97,33 @@ struct SprintCard: View {
         )
         .opacity(sprint.isConfirmed && sprint.weeks.allSatisfy(\.isPast) ? 0.6 : 1)
         .contentShape(Rectangle())
-        .onTapGesture {
-            if sprint.isConfirmed { openLayout() }
+        .onTapGesture { openDetail() }
+    }
+
+    /// Выдача (С16, МП32): тихое действие у текущей финнедели разложенного спринта.
+    @ViewBuilder
+    private func issueRow(_ week: TapeModel.Week) -> some View {
+        if sprint.isConfirmed, week.isCurrent, let amount = week.issueAmount {
+            if model.isIssued(weekStart: week.start) {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 10, weight: .semibold))
+                    Text("выдано · \(RU.money(amount))")
+                }
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.textMuted)
+            } else {
+                Button {
+                    model.issueWeek(weekStart: week.start)
+                } label: {
+                    Text("Новая неделя · выдать \(RU.money(amount))")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Theme.accent)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                        .background(Capsule().fill(Theme.accentSoft))
+                }
+            }
         }
     }
 

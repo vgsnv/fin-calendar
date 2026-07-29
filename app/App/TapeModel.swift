@@ -21,6 +21,7 @@ struct TapeModel {
         let isPast: Bool
         let thinAmount: Double?    // порция, если неделя тонкая (П9)
         let isExtra: Bool          // дополнительная финнеделя длинного спринта (С9)
+        var issueAmount: Double? = nil  // порция выдачи — только в разложенном спринте (С16)
 
         var id: Int { start.dayNumber }
     }
@@ -97,8 +98,10 @@ struct TapeModel {
                 let ws = start.adding(days: w * 7)
                 let amount = layout.weekAmounts.first { $0.start == ws }?.amount
                 let thin = (amount != nil && amount! < plan.namedWeek - 0.5) ? amount : nil
-                return makeWeek(start: ws, thin: thin,
-                                isExtra: layout.isLong && w == weeksCount - 1)
+                var week = makeWeek(start: ws, thin: thin,
+                                    isExtra: layout.isLong && w == weeksCount - 1)
+                week.issueAmount = amount
+                return week
             }
             let contributed = layout.contributions.reduce(0) { $0 + $1.amount }
             let anchorDay = Int(layout.incomeId.split(separator: "@").first ?? "") ?? 0
@@ -134,7 +137,7 @@ struct TapeModel {
                 .reduce(0) { $0 + $1.amount }
             sprints.append(SprintVM(
                 start: occ.sprintStart,
-                incomeName: occ.anchorDay == 5 ? "Аванс" : "Зарплата",
+                incomeName: model.incomeName(anchorDay: occ.anchorDay),
                 incomeAmount: occ.plannedAmount,
                 occupancy: occ.plannedAmount > 0 ? min(1, contributed / occ.plannedAmount) : 0,
                 weeks: weeks,
