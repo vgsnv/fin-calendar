@@ -14,7 +14,9 @@ public enum ArticleKind: Equatable, Sendable {
     case fund(monthlySpeed: Double)
 }
 
-public struct Article: Equatable, Sendable {
+extension ArticleKind: Codable {}
+
+public struct Article: Equatable, Codable, Sendable {
     public let id: String
     public let name: String
     public var kind: ArticleKind
@@ -32,7 +34,7 @@ public struct Article: Equatable, Sendable {
     }
 }
 
-public struct PlannedIncome: Sendable {
+public struct PlannedIncome: Codable, Sendable {
     public let anchor: Anchor
     public let plannedAmount: Double
 
@@ -42,20 +44,47 @@ public struct PlannedIncome: Sendable {
     }
 }
 
+/// Порция финнедели в застывшей раскладке.
+public struct WeekAllotment: Equatable, Codable, Sendable {
+    public let start: CivilDate
+    public let amount: Double
+
+    public init(start: CivilDate, amount: Double) {
+        self.start = start
+        self.amount = amount
+    }
+}
+
 /// Подтверждённая раскладка — застывший факт (П5, П12).
-public struct ConfirmedLayout: Sendable {
+public struct ConfirmedLayout: Codable, Sendable {
     /// Идентификатор прихода: "\(anchorDay)@\(factDate)".
     public let incomeId: String
+    public var incomeName: String
+    public var factDate: CivilDate?
     public let factAmount: Double
-    public let weekAmounts: [(CivilDate, Double)]
+    public var sprintStart: CivilDate?
+    public var sprintWeeks: Int?
+    public var isLong: Bool
+    public let weekAmounts: [WeekAllotment]
     public let contributions: [Contribution]
+    /// Отметки исполнения чек-листа — память человека, не учёт фактов (С12, П3):
+    /// на план не влияют никогда.
+    public var executed: Set<String>
 
-    public init(incomeId: String, factAmount: Double,
-                weekAmounts: [(CivilDate, Double)], contributions: [Contribution]) {
+    public init(incomeId: String, incomeName: String = "", factDate: CivilDate? = nil,
+                factAmount: Double, sprintStart: CivilDate? = nil, sprintWeeks: Int? = nil,
+                isLong: Bool = false, weekAmounts: [WeekAllotment],
+                contributions: [Contribution], executed: Set<String> = []) {
         self.incomeId = incomeId
+        self.incomeName = incomeName
+        self.factDate = factDate
         self.factAmount = factAmount
+        self.sprintStart = sprintStart
+        self.sprintWeeks = sprintWeeks
+        self.isLong = isLong
         self.weekAmounts = weekAmounts
         self.contributions = contributions
+        self.executed = executed
     }
 
     /// Пропущенная раскладка (С15а): восстановления задним числом нет — фиксируются
@@ -67,7 +96,7 @@ public struct ConfirmedLayout: Sendable {
     }
 }
 
-public struct Plan: Sendable {
+public struct Plan: Codable, Sendable {
     public var namedWeek: Double
     public var weekBoundary: Int
     public var incomes: [PlannedIncome]
@@ -105,6 +134,17 @@ public struct IncomeOccurrence: Sendable {
     public let sprintWeeks: Int
     public let plannedAmount: Double
     public let isLongSprint: Bool
+
+    public init(id: String, anchorDay: Int, factDate: CivilDate, sprintStart: CivilDate,
+                sprintWeeks: Int, plannedAmount: Double, isLongSprint: Bool) {
+        self.id = id
+        self.anchorDay = anchorDay
+        self.factDate = factDate
+        self.sprintStart = sprintStart
+        self.sprintWeeks = sprintWeeks
+        self.plannedAmount = plannedAmount
+        self.isLongSprint = isLongSprint
+    }
 }
 
 public struct HorizonRecommendation: Sendable {
@@ -118,8 +158,11 @@ public enum PlanEngine {
 
     /// Живой пересчёт (П11): рекомендация на неразложенное будущее.
     /// Подтверждённые приходы исключены из входа — их цифры застыли (П12).
+    /// `factOverrides` — фактические суммы приходов, названные в черновике раскладки
+    /// (МП27): план они не меняют, черновик пересчитывают.
     public static func recompute(_ plan: Plan, today: CivilDate,
-                                 horizonMonths: Int = 12) -> HorizonRecommendation {
+                                 horizonMonths: Int = 12,
+                                 factOverrides: [String: Double] = [:]) -> HorizonRecommendation {
         let calendar = OwnCalendar(weekBoundary: plan.weekBoundary,
                                    anchors: plan.incomes.map(\.anchor),
                                    production: plan.production)
@@ -138,7 +181,7 @@ public enum PlanEngine {
                 guard !confirmedIds.contains(id), s.end >= today else { continue }
                 occurrences.append(IncomeOccurrence(id: id, anchorDay: day, factDate: fact,
                                                     sprintStart: s.start, sprintWeeks: s.weeks,
-                                                    plannedAmount: amountByDay[day] ?? 0,
+                                                    plannedAmount: factOverrides[id] ?? amountByDay[day] ?? 0,
                                                     isLongSprint: s.isLong))
             }
         }

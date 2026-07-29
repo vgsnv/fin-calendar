@@ -11,15 +11,19 @@
 		619F5F9DA18494163FEB75D7 /* FinCalendarCore in Frameworks */ = {isa = PBXBuildFile; productRef = 583057980A386B40A48FE85B /* FinCalendarCore */; };
 		687F888A8FC1C624C202AA2B /* TapeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9816AEF1F2403624958493F4 /* TapeView.swift */; };
 		7BAFC83E4F560015649E67E9 /* TapeModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20473528042FD456CB02472E /* TapeModel.swift */; };
+		EAAE128C1A3C0985EEB24A3E /* LayoutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F42B0451B4D298F43EE03A5D /* LayoutView.swift */; };
 		EBD029C452AA3874A2D1D812 /* IzvestnoeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C8CB785502A4DA599158914 /* IzvestnoeApp.swift */; };
+		F5A8EEB8A70C892CE79CF03A /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25E6E77B296A32EF999ADC75 /* AppModel.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		1BB9534C42C162BF2AB64DC3 /* app */ = {isa = PBXFileReference; lastKnownFileType = folder; name = app; path = .; sourceTree = SOURCE_ROOT; };
 		20473528042FD456CB02472E /* TapeModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TapeModel.swift; sourceTree = "<group>"; };
+		25E6E77B296A32EF999ADC75 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		708DD535F155097504F38786 /* IzvestnoeBuduschee.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = IzvestnoeBuduschee.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		8C8CB785502A4DA599158914 /* IzvestnoeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IzvestnoeApp.swift; sourceTree = "<group>"; };
 		9816AEF1F2403624958493F4 /* TapeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TapeView.swift; sourceTree = "<group>"; };
+		F42B0451B4D298F43EE03A5D /* LayoutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutView.swift; sourceTree = "<group>"; };
 		FAE42F738AAD7490BCA3B724 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -46,7 +50,9 @@
 		59CE49AA9EFCD1C4355A4D4E /* App */ = {
 			isa = PBXGroup;
 			children = (
+				25E6E77B296A32EF999ADC75 /* AppModel.swift */,
 				8C8CB785502A4DA599158914 /* IzvestnoeApp.swift */,
+				F42B0451B4D298F43EE03A5D /* LayoutView.swift */,
 				20473528042FD456CB02472E /* TapeModel.swift */,
 				9816AEF1F2403624958493F4 /* TapeView.swift */,
 				FAE42F738AAD7490BCA3B724 /* Theme.swift */,
@@ -131,7 +137,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F5A8EEB8A70C892CE79CF03A /* AppModel.swift in Sources */,
 				EBD029C452AA3874A2D1D812 /* IzvestnoeApp.swift in Sources */,
+				EAAE128C1A3C0985EEB24A3E /* LayoutView.swift in Sources */,
 				7BAFC83E4F560015649E67E9 /* TapeModel.swift in Sources */,
 				687F888A8FC1C624C202AA2B /* TapeView.swift in Sources */,
 				3447ECD9C02018089F851FBC /* Theme.swift in Sources */,

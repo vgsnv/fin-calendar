@@ -49,7 +49,7 @@ public struct WeekAmount: Equatable, Sendable {
     public let isThin: Bool
 }
 
-public struct Contribution: Equatable, Sendable {
+public struct Contribution: Equatable, Codable, Sendable {
     public let needId: String
     public let incomeId: String
     public let amount: Double

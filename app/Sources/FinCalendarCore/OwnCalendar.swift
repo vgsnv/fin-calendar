@@ -2,14 +2,14 @@
 /// Правила: canon/calendar — К1–К3, СВ2. Эталон: tests/own-calendar-2027.md.
 
 /// Правило переноса опорной даты, попавшей на нерабочий день (СВ2, шаг 2).
-public enum TransferRule: Sendable {
+public enum TransferRule: String, Codable, Sendable {
     case lastWorkingDayBefore   // умолчание
     case firstWorkingDayAfter
     case none
 }
 
 /// Опорная дата: номинальный день месяца 1–28 (СВ1) и правило переноса.
-public struct Anchor: Sendable {
+public struct Anchor: Codable, Sendable {
     public let day: Int
     public let rule: TransferRule
     public let name: String
@@ -24,7 +24,7 @@ public struct Anchor: Sendable {
 
 /// Производственный календарь (СВ5): дополнительные нерабочие дни и рабочие выходные.
 /// Пустой справочник — «чистый» режим: нерабочие только суббота и воскресенье.
-public struct ProductionCalendar: Sendable {
+public struct ProductionCalendar: Codable, Sendable {
     public var holidays: Set<CivilDate>
     public var workingWeekends: Set<CivilDate>
 

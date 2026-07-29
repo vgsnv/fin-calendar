@@ -3,26 +3,33 @@ import FinCalendarCore
 
 /// Лента — центр интерфейса (МП6, МП22–МП26): строка — финнеделя, спринты очерчены.
 struct TapeView: View {
-    let model: TapeModel
+    @Environment(AppModel.self) private var model
+    @State private var layoutTarget: LayoutTarget?
 
     var body: some View {
+        let tape = TapeModel(model: model)
         ScrollView {
             VStack(spacing: 10) {
-                header
-                ForEach(model.sprints) { sprint in
-                    SprintCard(sprint: sprint, model: model)
-                        .id(sprint.id)
+                header(tape)
+                ForEach(tape.sprints) { sprint in
+                    SprintCard(sprint: sprint, tape: tape) {
+                        layoutTarget = LayoutTarget(occurrence: sprint.occurrence)
+                    }
+                    .id(sprint.id)
                 }
             }
             .padding(.horizontal, 12)
             .padding(.bottom, 32)
         }
         .background(Theme.bg)
+        .fullScreenCover(item: $layoutTarget) { target in
+            LayoutSheetView(occurrence: target.occurrence)
+        }
     }
 
-    private var header: some View {
+    private func header(_ tape: TapeModel) -> some View {
         HStack {
-            Text(String(model.today.year))
+            Text(String(tape.today.year))
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(Theme.textMuted)
             Spacer()
@@ -35,18 +42,24 @@ struct TapeView: View {
     }
 }
 
+private struct LayoutTarget: Identifiable {
+    let occurrence: IncomeOccurrence
+    var id: String { occurrence.id }
+}
+
 struct SprintCard: View {
     let sprint: TapeModel.SprintVM
-    let model: TapeModel
+    let tape: TapeModel
+    let openLayout: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             boundary
             occupancyBand
             ForEach(sprint.weeks) { week in
-                WeekRow(week: week, model: model)
+                WeekRow(week: week)
                 if let thin = week.thinAmount {
-                    Text("тонкая неделя · \(RU.money(thin)) вместо \(RU.money(model.namedWeek))")
+                    Text("тонкая неделя · \(RU.money(thin)) вместо \(RU.money(tape.namedWeek))")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(Theme.accent)
                 }
@@ -69,6 +82,11 @@ struct SprintCard: View {
                 .fill(Theme.surface)
                 .strokeBorder(sprint.callToAction ? Theme.accent : Theme.line, lineWidth: 1)
         )
+        .opacity(sprint.isConfirmed && sprint.weeks.allSatisfy(\.isPast) ? 0.6 : 1)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if sprint.isConfirmed { openLayout() }
+        }
     }
 
     private var boundary: some View {
@@ -77,21 +95,38 @@ struct SprintCard: View {
                 Text("\(sprint.start.day) \(RU.monthsGen[sprint.start.month - 1]) · \(sprint.incomeName)")
                     .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(Theme.text)
-                Text(sprint.callToAction
-                     ? "пришло \(RU.money(sprint.incomeAmount)) · ждёт раскладки"
-                     : "план \(RU.money(sprint.incomeAmount))")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Theme.textMuted)
+                subtitle
             }
             Spacer()
             if sprint.callToAction {
-                Text("Разложить")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 9)
-                    .background(Capsule().fill(Theme.accent))
+                Button(action: openLayout) {
+                    Text("Разложить")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 9)
+                        .background(Capsule().fill(Theme.accent))
+                }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var subtitle: some View {
+        if sprint.isConfirmed {
+            HStack(spacing: 4) {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 10, weight: .semibold))
+                Text("разложено · \(RU.money(sprint.incomeAmount))")
+            }
+            .font(.system(size: 12))
+            .foregroundStyle(Theme.textMuted)
+        } else {
+            Text(sprint.callToAction
+                 ? "пришло \(RU.money(sprint.incomeAmount)) · ждёт раскладки"
+                 : "план \(RU.money(sprint.incomeAmount))")
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.textMuted)
         }
     }
 
@@ -110,7 +145,6 @@ struct SprintCard: View {
 
 struct WeekRow: View {
     let week: TapeModel.Week
-    let model: TapeModel
 
     var body: some View {
         HStack(spacing: 0) {
@@ -156,8 +190,4 @@ struct DayCell: View {
                 .fill(day.isToday ? Theme.accentSoft : .clear)
         )
     }
-}
-
-#Preview {
-    TapeView(model: .demo())
 }

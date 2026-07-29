@@ -29,7 +29,8 @@ final class PlanTests: XCTestCase {
         // Подтверждаем раскладку первого прихода — она застывает (П12).
         plan.confirmed.append(ConfirmedLayout(
             incomeId: first.id, factAmount: 50_000,
-            weekAmounts: [(first.sprintStart, 12_000), (first.sprintStart.adding(days: 7), 12_000)],
+            weekAmounts: [WeekAllotment(start: first.sprintStart, amount: 12_000),
+                          WeekAllotment(start: first.sprintStart.adding(days: 7), amount: 12_000)],
             contributions: []))
 
         let r2 = PlanEngine.recompute(plan, today: CivilDate(2027, 7, 12), horizonMonths: 2)

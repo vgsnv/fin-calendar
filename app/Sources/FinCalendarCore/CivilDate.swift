@@ -1,6 +1,6 @@
 /// Календарная дата без времени и часового пояса.
 /// Детерминированная арифметика на номере дня — никакой Foundation-магии с зонами.
-public struct CivilDate: Hashable, Comparable, CustomStringConvertible, Sendable {
+public struct CivilDate: Hashable, Comparable, Codable, CustomStringConvertible, Sendable {
     public let year: Int
     public let month: Int
     public let day: Int
