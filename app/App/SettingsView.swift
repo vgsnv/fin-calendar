@@ -36,7 +36,6 @@ struct SettingsView: View {
             .padding(.bottom, 24)
         }
         .background(Theme.bg)
-        .scrollDismissesKeyboard(.interactively)
         .onAppear {
             weekText = RU.money(model.plan.namedWeek)
             incomeDrafts = model.plan.incomes.map(IncomeDraft.init)
@@ -122,13 +121,13 @@ struct SettingsView: View {
                         Text("на финнеделю")
                             .font(.system(size: 15))
                             .foregroundStyle(Theme.textMuted)
-                        Spacer()
+                            .fixedSize()
                         TextField("", text: $weekText)
                             .keyboardType(.numberPad)
                             .multilineTextAlignment(.trailing)
                             .font(.system(size: 24, weight: .semibold))
                             .foregroundStyle(Theme.text)
-                            .frame(maxWidth: 160)
+                            .frame(maxWidth: .infinity)
                     }
                     if let value = parsedWeek {
                         let fits = model.fits(namedWeek: value)
@@ -284,7 +283,7 @@ struct SettingsView: View {
     }
 
     private func toggleRow(_ title: String, note: String, isOn: Binding<Bool>) -> some View {
-        Toggle(isOn: isOn) {
+        SwitchRow(isOn: isOn) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.system(size: 15))
@@ -294,7 +293,6 @@ struct SettingsView: View {
                     .foregroundStyle(Theme.textMuted)
             }
         }
-        .tint(Theme.accent)
         .padding(.vertical, 11)
         .padding(.horizontal, 14)
     }
@@ -386,20 +384,19 @@ private struct IncomeEditor: View {
                 Text("\(draft.day)-го")
                     .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(Theme.text)
-                Stepper("", value: $draft.day, in: 1...28)
-                    .labelsHidden()
+                StepperControl(value: $draft.day, range: 1...28)
             }
             HStack {
                 Text("ожидаемая сумма")
                     .font(.system(size: 15))
                     .foregroundStyle(Theme.textMuted)
-                Spacer()
+                    .fixedSize()
                 TextField("0", text: $draft.amountText)
                     .keyboardType(.numberPad)
                     .multilineTextAlignment(.trailing)
                     .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(Theme.text)
-                    .frame(maxWidth: 120)
+                    .frame(maxWidth: .infinity)
             }
         }
         .padding(.horizontal, 14)

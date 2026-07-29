@@ -111,13 +111,13 @@ private struct DraftView: View {
     private var factField: some View {
         HStack {
             Text("пришло").font(.system(size: 15)).foregroundStyle(Theme.textMuted)
-            Spacer()
+                .fixedSize()
             TextField("", text: $factText)
                 .keyboardType(.numberPad)
                 .multilineTextAlignment(.trailing)
                 .font(.system(size: 24, weight: .semibold))
                 .foregroundStyle(Theme.text)
-                .frame(maxWidth: 160)
+                .frame(maxWidth: .infinity)
         }
         .padding(14)
         .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)

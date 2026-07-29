@@ -22,6 +22,61 @@ extension Color {
     }
 }
 
+/// Строка-переключатель на Button вместо системного Toggle: системный Toggle
+/// глотает первый тап, пока фокус в текстовом поле, — кнопка не глотает.
+struct SwitchRow<Label: View>: View {
+    @Binding var isOn: Bool
+    @ViewBuilder let label: () -> Label
+
+    var body: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.15)) { isOn.toggle() }
+        } label: {
+            HStack {
+                label().frame(maxWidth: .infinity, alignment: .leading)
+                Capsule()
+                    .fill(isOn ? Theme.accent : Theme.line)
+                    .frame(width: 51, height: 31)
+                    .overlay(alignment: isOn ? .trailing : .leading) {
+                        Circle()
+                            .fill(.white)
+                            .frame(width: 27, height: 27)
+                            .padding(2)
+                            .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
+                    }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// Кнопочный степпер «− | +» — по той же причине, что и SwitchRow.
+struct StepperControl: View {
+    @Binding var value: Int
+    let range: ClosedRange<Int>
+
+    var body: some View {
+        HStack(spacing: 0) {
+            step("minus") { if value > range.lowerBound { value -= 1 } }
+            Rectangle().fill(Theme.line).frame(width: 1, height: 18)
+            step("plus") { if value < range.upperBound { value += 1 } }
+        }
+        .background(Capsule().fill(Theme.subtle))
+    }
+
+    private func step(_ icon: String, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Theme.text)
+                .frame(width: 44, height: 32)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 enum RU {
     static let months = ["ЯНВАРЬ", "ФЕВРАЛЬ", "МАРТ", "АПРЕЛЬ", "МАЙ", "ИЮНЬ",
                          "ИЮЛЬ", "АВГУСТ", "СЕНТЯБРЬ", "ОКТЯБРЬ", "НОЯБРЬ", "ДЕКАБРЬ"]

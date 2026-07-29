@@ -48,12 +48,10 @@ struct OnboardingView: View {
                 switch step {
                 case 1:
                     ScrollView { step1.padding(20) }
-                        .scrollDismissesKeyboard(.interactively)
                 case 2:
                     step2
                 default:
                     ScrollView { step3.padding(20) }
-                        .scrollDismissesKeyboard(.interactively)
                 }
             }
             footer
@@ -457,42 +455,70 @@ private struct EntryIncomeCard: View {
                 Text("\(row.day)-е")
                     .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(Theme.text)
-                Stepper("число месяца", value: $row.day, in: 1...28)   // 1–28, СВ1
-                    .labelsHidden()
+                StepperControl(value: $row.day, range: 1...28)   // 1–28, СВ1
             }
             HStack {
                 Text("сумма")
                     .font(.system(size: 15))
                     .foregroundStyle(Theme.textMuted)
-                Spacer()
+                    .fixedSize()
+                // Поле тянется на всю оставшуюся строку — тап-зона широкая.
                 TextField("0", text: $row.amountText)
                     .keyboardType(.numberPad)
                     .multilineTextAlignment(.trailing)
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(Theme.text)
-                    .frame(maxWidth: 140)
+                    .frame(maxWidth: .infinity)
             }
-            DisclosureGroup(isExpanded: $row.ruleOpen) {
-                Picker("если выпадает на выходной", selection: $row.rule) {
-                    Text("последний рабочий день до").tag(TransferRule.lastWorkingDayBefore)
-                    Text("первый рабочий день после").tag(TransferRule.firstWorkingDayAfter)
-                    Text("не переносится").tag(TransferRule.none)
-                }
-                .pickerStyle(.menu)
-                .labelsHidden()
-                .tint(Theme.accent)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.top, 2)
+            // Раскрывашка на Button: DisclosureGroup глотает первый тап при фокусе в поле.
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) { row.ruleOpen.toggle() }
             } label: {
-                Text("если выпадает на выходной")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Theme.textMuted)
+                HStack {
+                    Text("если выпадает на выходной")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Theme.textMuted)
+                    Spacer()
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Theme.textFaint)
+                        .rotationEffect(.degrees(row.ruleOpen ? 180 : 0))
+                }
+                .contentShape(Rectangle())
             }
-            .tint(Theme.textMuted)
+            .buttonStyle(.plain)
+            if row.ruleOpen {
+                VStack(spacing: 0) {
+                    ruleOption("последний рабочий день до", .lastWorkingDayBefore)
+                    ruleOption("первый рабочий день после", .firstWorkingDayAfter)
+                    ruleOption("не переносится", TransferRule.none)
+                }
+            }
         }
         .padding(14)
         .background(RoundedRectangle(cornerRadius: 16).fill(Theme.surface)
             .strokeBorder(Theme.line, lineWidth: 1))
+    }
+
+    /// Вариант правила переноса — строка-кнопка с точкой выбора.
+    private func ruleOption(_ title: String, _ rule: TransferRule) -> some View {
+        Button {
+            row.rule = rule
+        } label: {
+            HStack(spacing: 8) {
+                Circle()
+                    .strokeBorder(row.rule == rule ? Theme.accent : Theme.line, lineWidth: 1.5)
+                    .background(Circle().fill(row.rule == rule ? Theme.accent : .clear).padding(4))
+                    .frame(width: 18, height: 18)
+                Text(title)
+                    .font(.system(size: 14))
+                    .foregroundStyle(Theme.text)
+                Spacer()
+            }
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 

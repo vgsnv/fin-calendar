@@ -100,7 +100,6 @@ struct ArticleFormView: View {
             .padding(20)
         }
         .background(Theme.bg)
-        .scrollDismissesKeyboard(.interactively)
         .animation(.easeInOut(duration: 0.15), value: hasDate)
         .animation(.easeInOut(duration: 0.15), value: monthly)
         .animation(.easeInOut(duration: 0.15), value: isPayment)
@@ -140,10 +139,9 @@ struct ArticleFormView: View {
 
     @ViewBuilder
     private var dateSection: some View {
-        Toggle(isOn: $hasDate) {
+        SwitchRow(isOn: $hasDate) {
             Text("к дате").font(.system(size: 15)).foregroundStyle(Theme.text)
         }
-        .tint(Theme.accent)
         .padding(.vertical, 11)
         .padding(.horizontal, 14)
 
@@ -164,11 +162,10 @@ struct ArticleFormView: View {
             }
 
             Divider().overlay(Theme.line)
-            Toggle(isOn: $monthly) {
+            SwitchRow(isOn: $monthly) {
                 Text("повторяется ежемесячно")
                     .font(.system(size: 15)).foregroundStyle(Theme.text)
             }
-            .tint(Theme.accent)
             .padding(.vertical, 11)
             .padding(.horizontal, 14)
 
@@ -179,8 +176,7 @@ struct ArticleFormView: View {
                         .font(.system(size: 15))
                         .foregroundStyle(Theme.text)
                     Spacer()
-                    Stepper("", value: $monthlyDay, in: 1...28)
-                        .labelsHidden()
+                    StepperControl(value: $monthlyDay, range: 1...28)
                 }
                 .padding(.vertical, 8)
                 .padding(.horizontal, 14)
@@ -188,7 +184,7 @@ struct ArticleFormView: View {
 
             if isPayment && !monthly {
                 Divider().overlay(Theme.line)
-                Toggle(isOn: $prepared) {
+                SwitchRow(isOn: $prepared) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("готовиться заранее")
                             .font(.system(size: 15)).foregroundStyle(Theme.text)
@@ -198,7 +194,6 @@ struct ArticleFormView: View {
                             .foregroundStyle(Theme.textMuted)
                     }
                 }
-                .tint(Theme.accent)
                 .padding(.vertical, 11)
                 .padding(.horizontal, 14)
             }
@@ -367,13 +362,14 @@ struct ArticleFormView: View {
     private func numberRow(_ label: String, text: Binding<String>) -> some View {
         HStack {
             Text(label).font(.system(size: 15)).foregroundStyle(Theme.textMuted)
-            Spacer()
+                .fixedSize()
+            // Поле тянется на всю оставшуюся строку — тап-зона широкая.
             TextField("", text: text)
                 .keyboardType(.numberPad)
                 .multilineTextAlignment(.trailing)
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(Theme.text)
-                .frame(maxWidth: 160)
+                .frame(maxWidth: .infinity)
         }
         .padding(14)
     }
