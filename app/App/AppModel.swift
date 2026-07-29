@@ -7,7 +7,7 @@ import FinCalendarCore
 @Observable
 final class AppModel {
     private(set) var plan: Plan
-    let today: CivilDate
+    private(set) var today: CivilDate
     private(set) var horizon: HorizonRecommendation
     /// Плана ещё нет — показывается вход (МП18–МП21).
     private(set) var needsOnboarding: Bool
@@ -17,9 +17,16 @@ final class AppModel {
             .appendingPathComponent("plan.json")
     }
 
-    init() {
+    static var realToday: CivilDate {
         let c = Calendar.current.dateComponents([.year, .month, .day], from: Date())
-        let today = CivilDate(c.year!, c.month!, c.day!)
+        return CivilDate(c.year!, c.month!, c.day!)
+    }
+
+    init() {
+        var today = Self.realToday
+        #if DEBUG
+        today = today.adding(days: UserDefaults.standard.integer(forKey: "debugDayOffset"))
+        #endif
         self.today = today
 
         let loaded: Plan
@@ -148,6 +155,24 @@ final class AppModel {
     func setNotifications(layout: Bool, issue: Bool) {
         mutate { $0.notifyLayout = layout; $0.notifyIssue = issue }
     }
+
+    #if DEBUG
+    // MARK: Сдвиг дня — только для тестирования, в рабочей сборке не существует.
+
+    var isTimeShifted: Bool { today != Self.realToday }
+
+    func debugShiftDay(by days: Int) {
+        today = today.adding(days: days)
+        UserDefaults.standard.set(today.dayNumber - Self.realToday.dayNumber,
+                                  forKey: "debugDayOffset")
+        horizon = PlanEngine.recompute(plan, today: today, horizonMonths: 3)
+        NotificationManager.reschedule(self)
+    }
+
+    func debugResetDay() {
+        debugShiftDay(by: Self.realToday.dayNumber - today.dayNumber)
+    }
+    #endif
 
     /// «Начать заново» (settings.md): полное стирание — не перезапуск К7, а стирание.
     func eraseEverything() {

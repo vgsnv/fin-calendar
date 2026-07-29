@@ -24,6 +24,9 @@ struct TapeView: View {
             .padding(.bottom, 32)
         }
         .background(Theme.bg)
+        #if DEBUG
+        .overlay(alignment: .bottomTrailing) { DebugDayChip() }
+        #endif
         .fullScreenCover(item: $layoutTarget) { target in
             LayoutSheetView(occurrence: target.occurrence)
         }
@@ -56,6 +59,39 @@ private struct SprintTarget: Identifiable {
     let occurrence: IncomeOccurrence
     var id: String { occurrence.id }
 }
+
+#if DEBUG
+/// Сдвиг «сегодня» — только для тестирования (DEBUG): в рабочей сборке
+/// этого элемента не существует. Тап по дате — возврат к реальному дню.
+private struct DebugDayChip: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Button { model.debugShiftDay(by: -1) } label: {
+                Image(systemName: "minus")
+                    .frame(width: 40, height: 36)
+            }
+            Button { model.debugResetDay() } label: {
+                Text("\(model.today.day) \(RU.monthsGen[model.today.month - 1])")
+                    .font(.system(size: 13, weight: .semibold))
+                    .frame(minWidth: 74)
+                    .foregroundStyle(model.isTimeShifted ? Color.white : Theme.textMuted)
+            }
+            Button { model.debugShiftDay(by: 1) } label: {
+                Image(systemName: "plus")
+                    .frame(width: 40, height: 36)
+            }
+        }
+        .font(.system(size: 14, weight: .semibold))
+        .foregroundStyle(model.isTimeShifted ? .white : Theme.textMuted)
+        .background(Capsule().fill(model.isTimeShifted ? Theme.accent : Theme.subtle)
+            .shadow(color: .black.opacity(0.12), radius: 8, y: 2))
+        .padding(.trailing, 16)
+        .padding(.bottom, 24)
+    }
+}
+#endif
 
 struct SprintCard: View {
     let sprint: TapeModel.SprintVM
