@@ -1,0 +1,22 @@
+name: IzvestnoeBuduschee
+options:
+  bundleIdPrefix: dev.vg
+packages:
+  FinCalendarCore:
+    path: .
+targets:
+  IzvestnoeBuduschee:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources: [App]
+    dependencies:
+      - package: FinCalendarCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.vg.izvestnoe-buduschee
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        TARGETED_DEVICE_FAMILY: "1"
+        CODE_SIGNING_ALLOWED: NO
+        SWIFT_VERSION: "5.9"
