@@ -92,14 +92,29 @@ struct ArticleFormView: View {
                     numberRow("сумма", text: $amountText, field: .amount)
                 }
 
-                card { dateSection }
+                // Поля-развилки (МП15): дата и скорость никогда не участвуют вместе,
+                // поэтому заполненная развилка прячет вторую. Введённое не стирается —
+                // очистите одну развилку, и вторая вернётся.
+                if hasDate || parsedSpeed == nil {
+                    card { dateSection }
+                }
 
-                card { numberRow("скорость в месяц", text: $speedText, field: .speed) }
+                if !hasDate {
+                    card { numberRow("скорость в месяц", text: $speedText, field: .speed) }
+                }
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(kindCaption(draft: draft, preview: preview))
                         .font(.system(size: 12))
                         .foregroundStyle(Theme.textMuted)
+                    // Скорость выше цели легальна (движок режет взнос до остатка),
+                    // но почти наверняка опечатка — говорим, что получится.
+                    if let draft, case .intent(let target, let speed) = draft.kind,
+                       speed > target {
+                        Text("скорость больше цели: лишнего не отложится — замысел закроется, как только соберётся \(RU.money(target))")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Theme.textMuted)
+                    }
                     if let preview {
                         consequenceLine(preview.recommendation)
                     }
@@ -115,6 +130,7 @@ struct ArticleFormView: View {
         .animation(.easeInOut(duration: 0.15), value: hasDate)
         .animation(.easeInOut(duration: 0.15), value: monthly)
         .animation(.easeInOut(duration: 0.15), value: isPayment)
+        .animation(.easeInOut(duration: 0.15), value: parsedSpeed != nil)
         .onChange(of: monthly) { _, on in
             if on { monthlyDay = min(Self.civil(from: dueDate).day, 28) }
         }
@@ -267,11 +283,11 @@ struct ArticleFormView: View {
         case .payment(_, let date, let day, _):
             if let day { return "Платёж: каждый месяц, к \(day)-му числу" }
             return "Платёж: соберём к \(date.day) \(RU.monthsGen[date.month - 1])"
-        case .intent(_, let speed):
+        case .intent(let target, let speed):
             if let finish = preview?.intentFinish[draft.id] {
                 return "Замысел: накопится ~к \(monthsDative[finish.month - 1])"
             }
-            return "Замысел: \(RU.money(speed)) в месяц"
+            return "Замысел: \(RU.money(target)), по \(RU.money(speed)) в месяц"
         case .fund(let speed):
             return "Фонд: \(RU.money(speed)) в месяц, без конца"
         }
