@@ -23,6 +23,7 @@ struct OnboardingView: View {
     @State private var weekText = ""
     @State private var weekBoundary = 6   // суббота — рекомендация С13
     @State private var ceiling = 0.0
+    @FocusState private var weekFocused: Bool
 
     var body: some View {
         ZStack {
@@ -296,6 +297,7 @@ struct OnboardingView: View {
                     .multilineTextAlignment(.center)
                     .font(.system(size: 34, weight: .semibold))
                     .foregroundStyle(Theme.text)
+                    .focused($weekFocused)
                 Text("в неделю")
                     .font(.system(size: 12))
                     .foregroundStyle(Theme.textMuted)
@@ -304,6 +306,8 @@ struct OnboardingView: View {
             .frame(maxWidth: .infinity)
             .background(RoundedRectangle(cornerRadius: 16).fill(Theme.surface)
                 .strokeBorder(Theme.line, lineWidth: 1))
+            // Тап по любому месту карточки открывает клавиатуру.
+            .tapFocuses($weekFocused)
 
             // Живая проверка: молчаливого урезания не существует (МП20).
             if week > 0 {
@@ -319,6 +323,7 @@ struct OnboardingView: View {
                 Text("посчитать за меня")
                     .font(.system(size: 13))
                     .foregroundStyle(Theme.accent)
+                    .tapPadded(visualHeight: 16)
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -452,12 +457,17 @@ private struct EntryIncomeCard: View {
     let canDelete: Bool
     let onDelete: () -> Void
 
+    private enum Field { case name, amount }
+    @FocusState private var focus: Field?
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 4) {
             HStack {
                 TextField(placeholder, text: $row.name)
                     .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(Theme.text)
+                    .focused($focus, equals: .name)
+                    .tapFocuses($focus, equals: .name)
                 if canDelete {
                     Button(action: onDelete) {
                         Image(systemName: "xmark")
@@ -480,14 +490,16 @@ private struct EntryIncomeCard: View {
                     .font(.system(size: 15))
                     .foregroundStyle(Theme.textMuted)
                     .fixedSize()
-                // Поле тянется на всю оставшуюся строку — тап-зона широкая.
                 TextField("0", text: $row.amountText)
                     .keyboardType(.numberPad)
                     .multilineTextAlignment(.trailing)
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(Theme.text)
+                    .focused($focus, equals: .amount)
                     .frame(maxWidth: .infinity)
             }
+            // Тап по подписи «сумма» и пустому месту строки тоже фокусирует поле.
+            .tapFocuses($focus, equals: .amount)
             // Раскрывашка на Button: DisclosureGroup глотает первый тап при фокусе в поле.
             Button {
                 withAnimation(.easeInOut(duration: 0.15)) { row.ruleOpen.toggle() }
@@ -502,7 +514,7 @@ private struct EntryIncomeCard: View {
                         .foregroundStyle(Theme.textFaint)
                         .rotationEffect(.degrees(row.ruleOpen ? 180 : 0))
                 }
-                .contentShape(Rectangle())
+                .tapRow(minHeight: 36)
             }
             .buttonStyle(.plain)
             if row.ruleOpen {

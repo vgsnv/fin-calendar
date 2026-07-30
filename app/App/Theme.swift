@@ -38,6 +38,24 @@ extension View {
         padding(.vertical, max(0, (minHeight - visualHeight) / 2))
             .contentShape(Rectangle())
     }
+
+    /// Тап-зона текстового поля: сам TextField ловит тап только по кадру высотой
+    /// в строку текста, поэтому область растягивается (не ниже `minHeight`) и любой
+    /// тап по ней переводит фокус в поле. На самом поле нужен парный `.focused(...)`.
+    func tapFocuses<F: Hashable>(_ focus: FocusState<F?>.Binding, equals value: F,
+                                 minHeight: CGFloat = 44) -> some View {
+        frame(minHeight: minHeight)
+            .contentShape(Rectangle())
+            .onTapGesture { focus.wrappedValue = value }
+    }
+
+    /// То же для единственного поля на экране (FocusState<Bool>).
+    func tapFocuses(_ focus: FocusState<Bool>.Binding,
+                    minHeight: CGFloat = 44) -> some View {
+        frame(minHeight: minHeight)
+            .contentShape(Rectangle())
+            .onTapGesture { focus.wrappedValue = true }
+    }
 }
 
 extension Color {
@@ -118,6 +136,7 @@ struct DayGridButton: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 7)
                 .background(Capsule().fill(Theme.subtle))
+                .tapPadded(visualHeight: 32)
         }
         .buttonStyle(.plain)
         .sheet(isPresented: $showGrid) { DayGridSheet(day: $day) }

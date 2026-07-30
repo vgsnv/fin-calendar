@@ -23,6 +23,9 @@ struct ArticleFormView: View {
     @State private var speedText: String
     @State private var isPaused: Bool
 
+    private enum Field { case name, amount, speed }
+    @FocusState private var focus: Field?
+
     init(existing: Article? = nil, prefillDate: CivilDate? = nil,
          onSave: ((Article) -> Void)? = nil) {
         self.existing = existing
@@ -82,14 +85,16 @@ struct ArticleFormView: View {
                     TextField("имя", text: $name)
                         .font(.system(size: 17, weight: .medium))
                         .foregroundStyle(Theme.text)
-                        .padding(14)
+                        .focused($focus, equals: .name)
+                        .padding(.horizontal, 14)
+                        .tapFocuses($focus, equals: .name, minHeight: 48)
                     Divider().overlay(Theme.line)
-                    numberRow("сумма", text: $amountText)
+                    numberRow("сумма", text: $amountText, field: .amount)
                 }
 
                 card { dateSection }
 
-                card { numberRow("скорость в месяц", text: $speedText) }
+                card { numberRow("скорость в месяц", text: $speedText, field: .speed) }
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(kindCaption(draft: draft, preview: preview))
@@ -367,19 +372,22 @@ struct ArticleFormView: View {
                 .strokeBorder(Theme.line, lineWidth: 1))
     }
 
-    private func numberRow(_ label: String, text: Binding<String>) -> some View {
+    private func numberRow(_ label: String, text: Binding<String>,
+                           field: Field) -> some View {
         HStack {
             Text(label).font(.system(size: 15)).foregroundStyle(Theme.textMuted)
                 .fixedSize()
-            // Поле тянется на всю оставшуюся строку — тап-зона широкая.
             TextField("", text: text)
                 .keyboardType(.numberPad)
                 .multilineTextAlignment(.trailing)
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(Theme.text)
+                .focused($focus, equals: field)
                 .frame(maxWidth: .infinity)
         }
-        .padding(14)
+        .padding(.horizontal, 14)
+        // Тап по подписи и любому месту строки фокусирует поле.
+        .tapFocuses($focus, equals: field, minHeight: 48)
     }
 
     private func actionRow(_ title: String, note: String) -> some View {
