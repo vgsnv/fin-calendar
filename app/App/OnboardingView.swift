@@ -281,7 +281,7 @@ struct OnboardingView: View {
         }
     }
 
-    // MARK: Шаг 3 · Повседневные деньги (МП20)
+    // MARK: Шаг 3 · Недельные деньги (МП20)
 
     private var step3: some View {
         let week = parsedWeek

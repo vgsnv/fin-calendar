@@ -105,7 +105,7 @@ final class PlanTests: XCTestCase {
         let collected = r.recommendation.contributions
             .filter { $0.needId == extraId }.reduce(0) { $0 + $1.amount }
         XCTAssertEqual(collected, 12_000, accuracy: 0.01,
-                       "порция повседневных денег собрана к старту длинного спринта")
+                       "порция недельных денег собрана к старту длинного спринта")
 
         let extraContribs = r.recommendation.contributions.filter { $0.needId == extraId }
         let sources = extraContribs.map { c in r.occurrences.first { $0.id == c.incomeId }! }
@@ -162,7 +162,7 @@ final class PlanTests: XCTestCase {
         let r = PlanEngine.recompute(plan, today: CivilDate(2027, 7, 10), horizonMonths: 1)
 
         let sprintStart = CivilDate(2027, 7, 10)
-        // Повседневные не гнутся никогда (П9): обе финнедели — полная порция
+        // Недельные не гнутся никогда (П9): обе финнедели — полная порция
         let w1 = r.recommendation.weeks.first { $0.start == sprintStart }!
         let w2 = r.recommendation.weeks.first { $0.start == sprintStart.adding(days: 7) }!
         XCTAssertEqual(w1.amount, 12_000, accuracy: 0.01)

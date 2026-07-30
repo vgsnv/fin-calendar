@@ -50,6 +50,10 @@ public struct Sprint: Equatable, Sendable {
     public let anchorDays: [Int]
     /// Фактические даты приходов после переноса.
     public let factDates: [CivilDate]
+    /// Номинальные даты приходов до переноса (СВ2, шаг 1). Перенос может увести факт
+    /// в соседний месяц (5 января → 30 декабря), а к месяцу приходы группирует
+    /// ровность свободных денег (П6б) — ей нужен именно номинальный месяц.
+    public let nominalDates: [CivilDate]
     /// Длиннее обычной длины своей опорной даты (СВ4). Определено при 1–2 опорных датах.
     public var isLong: Bool = false
 
@@ -95,7 +99,7 @@ public struct OwnCalendar: Sendable {
     /// Сетка спринтов на горизонте (СВ2). Последняя граница горизонта закрывает
     /// предпоследний спринт; спринт от последней границы не возвращается — его длина неизвестна.
     public func sprints(fromYear: Int, fromMonth: Int, toYear: Int, toMonth: Int) -> [Sprint] {
-        struct Origin { let anchorDay: Int; let fact: CivilDate }
+        struct Origin { let anchorDay: Int; let fact: CivilDate; let nominal: CivilDate }
         var byStart: [CivilDate: [Origin]] = [:]
 
         var y = fromYear, m = fromMonth
@@ -104,7 +108,8 @@ public struct OwnCalendar: Sendable {
                 let nominal = CivilDate(y, m, anchor.day)
                 let fact = factDate(nominal: nominal, rule: anchor.rule)
                 let start = sprintStart(for: fact)
-                byStart[start, default: []].append(Origin(anchorDay: anchor.day, fact: fact))
+                byStart[start, default: []].append(
+                    Origin(anchorDay: anchor.day, fact: fact, nominal: nominal))
             }
             m += 1
             if m > 12 { m = 1; y += 1 }
@@ -121,7 +126,8 @@ public struct OwnCalendar: Sendable {
                 start: start,
                 weeks: days / 7,
                 anchorDays: origins.map(\.anchorDay),
-                factDates: origins.map(\.fact)
+                factDates: origins.map(\.fact),
+                nominalDates: origins.map(\.nominal)
             ))
         }
         return markLong(result)
