@@ -17,6 +17,7 @@ struct OnboardingView: View {
     // Шаг 2 — статьи (черновой список, в план попадёт при завершении).
     @State private var articles: [Article] = []
     @State private var showArticleForm = false
+    @State private var editingArticle: Article?
 
     // Шаг 3 — неделя и граница финнедели.
     @State private var weekText = ""
@@ -60,6 +61,14 @@ struct OnboardingView: View {
         }
         .sheet(isPresented: $showArticleForm) {
             ArticleFormView(onSave: { articles.append($0) })
+        }
+        .sheet(item: $editingArticle) { article in
+            // Правка черновика: статья заменяется в локальном списке, плана ещё нет.
+            ArticleFormView(existing: article, onSave: { updated in
+                if let i = articles.firstIndex(where: { $0.id == updated.id }) {
+                    articles[i] = updated
+                }
+            })
         }
     }
 
@@ -209,7 +218,7 @@ struct OnboardingView: View {
             }
             List {
                 ForEach(articles, id: \.id) { article in
-                    articleRow(article)
+                    Button { editingArticle = article } label: { articleRow(article) }
                         .listRowBackground(Theme.surface)
                         .listRowSeparatorTint(Theme.line)
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
@@ -235,13 +244,19 @@ struct OnboardingView: View {
     }
 
     private func articleRow(_ article: Article) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(article.name)
-                .font(.system(size: 15))
-                .foregroundStyle(Theme.text)
-            Text(articleNote(article))
-                .font(.system(size: 12))
-                .foregroundStyle(Theme.textMuted)
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(article.name)
+                    .font(.system(size: 15))
+                    .foregroundStyle(Theme.text)
+                Text(articleNote(article))
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.textMuted)
+            }
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Theme.textFaint)
         }
         .padding(.vertical, 2)
     }
@@ -452,10 +467,7 @@ private struct EntryIncomeCard: View {
                     .font(.system(size: 15))
                     .foregroundStyle(Theme.textMuted)
                 Spacer()
-                Text("\(row.day)-е")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(Theme.text)
-                StepperControl(value: $row.day, range: 1...28)   // 1–28, СВ1
+                DayGridButton(day: $row.day)   // 1–28, СВ1
             }
             HStack {
                 Text("сумма")

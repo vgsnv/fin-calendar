@@ -16,7 +16,7 @@ public enum ArticleKind: Equatable, Sendable {
 
 extension ArticleKind: Codable {}
 
-public struct Article: Equatable, Codable, Sendable {
+public struct Article: Equatable, Codable, Sendable, Identifiable {
     public let id: String
     public let name: String
     public var kind: ArticleKind
@@ -190,7 +190,7 @@ public enum PlanEngine {
                                  factOverrides: [String: Double] = [:]) -> HorizonRecommendation {
         guard !plan.incomes.isEmpty else {
             return HorizonRecommendation(
-                recommendation: Recommendation(weeks: [], contributions: [], freeMoney: [:], unmetNeeds: []),
+                recommendation: Recommendation(weeks: [], contributions: [], freeMoney: [:], shortfalls: []),
                 occurrences: [], intentFinish: [:])
         }
         let calendar = OwnCalendar(weekBoundary: plan.weekBoundary,
@@ -218,13 +218,13 @@ public enum PlanEngine {
         occurrences.sort { $0.factDate < $1.factDate }
         guard !occurrences.isEmpty else {
             return HorizonRecommendation(
-                recommendation: Recommendation(weeks: [], contributions: [], freeMoney: [:], unmetNeeds: []),
+                recommendation: Recommendation(weeks: [], contributions: [], freeMoney: [:], shortfalls: []),
                 occurrences: [], intentFinish: [:])
         }
         let horizonEnd = occurrences.map { $0.sprintStart.adding(days: $0.sprintWeeks * 7) }.max()!
 
         // Платежи «без подготовки» уменьшают приход своего спринта до балансировки (С3).
-        var unpreparedBySprint: [CivilDate: [(article: Article, amount: Double, date: CivilDate)]] = [:]
+        // Если остатка не хватает на полные порции финнедель — недостача (П9).
         var balancingIncomes: [BalancingIncome] = []
         var extraContribs: [Contribution] = []
         for occ in occurrences {
@@ -237,15 +237,17 @@ public enum PlanEngine {
                 let take = min(amount, p)
                 amount -= take
                 extraContribs.append(Contribution(needId: a.id, incomeId: occ.id, amount: take))
-                unpreparedBySprint[occ.sprintStart, default: []].append((a, take, date))
             }
             balancingIncomes.append(BalancingIncome(id: occ.id, factDate: occ.factDate, amount: amount))
         }
 
+        // Дополнительная финнеделя длинного спринта в балансировку не входит:
+        // её порцию собирает системная статья (С9), выдача — из плана.
         var weekStarts: [CivilDate] = []
         var seenSprints = Set<CivilDate>()
         for occ in occurrences where seenSprints.insert(occ.sprintStart).inserted {
-            for w in 0..<occ.sprintWeeks { weekStarts.append(occ.sprintStart.adding(days: w * 7)) }
+            let paidWeeks = occ.sprintWeeks - (occ.isLongSprint ? 1 : 0)
+            for w in 0..<paidWeeks { weekStarts.append(occ.sprintStart.adding(days: w * 7)) }
         }
 
         var needs: [Need] = []
@@ -311,30 +313,6 @@ public enum PlanEngine {
         let balancer = Balancer(namedWeek: plan.namedWeek)
         var rec = balancer.recommend(incomes: balancingIncomes, weekStarts: weekStarts, needs: needs)
         rec.contributions.append(contentsOf: extraContribs)
-
-        // С3, «без подготовки»: финнедели до даты платежа живут полной порцией,
-        // утоньшение — на финнеделях от даты, и заявляется как факт (П9).
-        for (sprintStart, payments) in unpreparedBySprint {
-            guard let occ = occurrences.first(where: { $0.sprintStart == sprintStart }) else { continue }
-            let starts = (0..<occ.sprintWeeks).map { sprintStart.adding(days: $0 * 7) }
-            let idxs = rec.weeks.indices.filter { starts.contains(rec.weeks[$0].start) }
-            let budget = idxs.reduce(0) { $0 + rec.weeks[$1].amount }
-            let firstPaymentDate = payments.map(\.date).min()!
-            let before = idxs.filter { rec.weeks[$0].start < firstPaymentDate }
-            let after = idxs.filter { rec.weeks[$0].start >= firstPaymentDate }
-            var left = budget
-            var newAmounts: [Int: Double] = [:]
-            for i in before {
-                let a = min(plan.namedWeek, left)
-                newAmounts[i] = a
-                left -= a
-            }
-            for i in after { newAmounts[i] = after.isEmpty ? 0 : left / Double(after.count) }
-            for (i, a) in newAmounts {
-                rec.weeks[i] = WeekAmount(start: rec.weeks[i].start, amount: a,
-                                          isThin: a < plan.namedWeek - 1e-9)
-            }
-        }
 
         return HorizonRecommendation(recommendation: rec, occurrences: occurrences,
                                      intentFinish: intentFinish)

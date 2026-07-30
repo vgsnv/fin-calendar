@@ -2,7 +2,7 @@ import XCTest
 @testable import FinCalendarCore
 
 /// Слой плана: живой пересчёт (П11–П12), жизненный цикл статей (С3–С10),
-/// дополнительная финнеделя (С9), пропущенная раскладка (С15а).
+/// дополнительная финнеделя (С9), недостача (П9), пропущенная раскладка (С15а).
 /// Сквозной пример: приходы 5-го («Аванс» 50 000) и 20-го («Зарплата» 55 000),
 /// неделя 12 000, граница — суббота, июль 2027-го.
 final class PlanTests: XCTestCase {
@@ -109,13 +109,18 @@ final class PlanTests: XCTestCase {
             let occ = r.occurrences.first { $0.id == c.incomeId }!
             XCTAssertLessThanOrEqual(occ.factDate, long.sprintStart)
         }
+        // Лишняя неделя в балансировку не входит: её порция — статья,
+        // двойного счёта не существует (С9).
+        let extraStart = long.sprintStart.adding(days: (long.sprintWeeks - 1) * 7)
+        XCTAssertFalse(r.recommendation.weeks.contains { $0.start == extraStart },
+                       "дополнительная неделя оплачена из плана, не из прихода спринта повторно")
     }
 
-    // MARK: Платёж «без подготовки» (С3): утоньшение от даты платежа
+    // MARK: Платёж «без подготовки» (С3): недостача заявляется, недели не гнутся
 
-    func testUnpreparedPaymentThinsWeeksFromItsDate() {
-        // Платёж 30 000 в середине спринта от 5-го (дата 14 июля, вторая неделя):
-        // приход 50 000 − 30 000 = 20 000: неделя до даты полная, неделя от даты — тонкая.
+    func testUnpreparedPaymentDeclaresShortfall() {
+        // Платёж 30 000 в спринте от 5-го: приход 50 000 − 30 000 = 20 000
+        // на две полные порции по 12 000 не хватает — недостача 4 000 (П9).
         let school = Article(id: "школа", name: "школа",
                              kind: .payment(amount: 30_000, date: CivilDate(2027, 7, 19),
                                             monthlyDay: nil, prepared: false))
@@ -125,11 +130,15 @@ final class PlanTests: XCTestCase {
         let r = PlanEngine.recompute(plan, today: CivilDate(2027, 7, 10), horizonMonths: 1)
 
         let sprintStart = CivilDate(2027, 7, 10)
+        // Повседневные не гнутся никогда (П9): обе финнедели — полная порция
         let w1 = r.recommendation.weeks.first { $0.start == sprintStart }!
         let w2 = r.recommendation.weeks.first { $0.start == sprintStart.adding(days: 7) }!
-        XCTAssertEqual(w1.amount, 12_000, accuracy: 0.01, "финнеделя до даты живёт полной порцией")
-        XCTAssertEqual(w2.amount, 8_000, accuracy: 0.01, "утоньшение — на финнеделе от даты платежа")
-        XCTAssertTrue(w2.isThin, "и заявляется как факт (П9)")
+        XCTAssertEqual(w1.amount, 12_000, accuracy: 0.01)
+        XCTAssertEqual(w2.amount, 12_000, accuracy: 0.01)
+        // Недостача заявлена с точной цифрой и датой (П9)
+        let shortfall = r.recommendation.shortfalls.first
+        XCTAssertEqual(shortfall?.date, sprintStart.adding(days: 7))
+        XCTAssertEqual(shortfall?.amount ?? 0, 4_000, accuracy: 0.01)
         // Платёж оплачен из прихода своего спринта
         let paid = r.recommendation.contributions.filter { $0.needId == "школа" }
         XCTAssertEqual(paid.reduce(0) { $0 + $1.amount }, 30_000, accuracy: 0.01)

@@ -77,6 +77,65 @@ struct StepperControl: View {
     }
 }
 
+/// Кнопка «числа месяца» — открывает попап с сеткой 1–28 (СВ1):
+/// выбор одним тапом вместо перебора степпером.
+struct DayGridButton: View {
+    @Binding var day: Int
+    var suffix = "-е"
+    @State private var showGrid = false
+
+    var body: some View {
+        Button { showGrid = true } label: {
+            Text("\(day)\(suffix)")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(Theme.text)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 7)
+                .background(Capsule().fill(Theme.subtle))
+        }
+        .buttonStyle(.plain)
+        .sheet(isPresented: $showGrid) { DayGridSheet(day: $day) }
+    }
+}
+
+private struct DayGridSheet: View {
+    @Binding var day: Int
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Число месяца")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(Theme.text)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 7),
+                      spacing: 8) {
+                ForEach(1...28, id: \.self) { d in
+                    Button {
+                        day = d
+                        dismiss()
+                    } label: {
+                        Text(String(d))
+                            .font(.system(size: 17, weight: d == day ? .semibold : .regular))
+                            .foregroundStyle(d == day ? .white : Theme.text)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 42)
+                            .background(RoundedRectangle(cornerRadius: 10)
+                                .fill(d == day ? Theme.accent : Theme.subtle))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            Text("1–28 — такие числа есть в любом месяце")
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.textMuted)
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .presentationDetents([.height(340)])
+        .presentationBackground(Theme.surface)
+    }
+}
+
 enum RU {
     static let months = ["ЯНВАРЬ", "ФЕВРАЛЬ", "МАРТ", "АПРЕЛЬ", "МАЙ", "ИЮНЬ",
                          "ИЮЛЬ", "АВГУСТ", "СЕНТЯБРЬ", "ОКТЯБРЬ", "НОЯБРЬ", "ДЕКАБРЬ"]

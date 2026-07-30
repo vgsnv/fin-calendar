@@ -33,8 +33,12 @@ enum NotificationManager {
             center.removeAllPendingNotificationRequests()
 
             // 1. «Пора раскладка» — плановая дата прихода, один раз на приход (МП33).
+            // Горизонт плана — годы (МП23), а очередь локальных уведомлений
+            // у системы короткая: планируются только ближние приходы,
+            // расписание всё равно перестраивается при каждой правке.
             if plan.notifyLayout {
-                for occ in occurrences where occ.factDate >= today {
+                let window = today.adding(days: 120)
+                for occ in occurrences where occ.factDate >= today && occ.factDate <= window {
                     let content = UNMutableNotificationContent()
                     content.title = "Пора раскладка"
                     content.body = "По плану сегодня приход „\(incomeName(anchorDay: occ.anchorDay, in: plan))“ — когда деньги придут, разложите их."

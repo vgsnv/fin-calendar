@@ -18,5 +18,8 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         TARGETED_DEVICE_FAMILY: "1"
-        CODE_SIGNING_ALLOWED: NO
+        # Симулятор собирается без подписи (headless-сборки),
+        # устройство — автоподпись командой из Xcode.
+        CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]: NO
+        CODE_SIGN_STYLE: Automatic
         SWIFT_VERSION: "5.9"

@@ -9,8 +9,16 @@ final class AppModel {
     private(set) var plan: Plan
     private(set) var today: CivilDate
     private(set) var horizon: HorizonRecommendation
+    /// Лента — готовая вью-модель горизонта: считается при правках плана, не в рендере.
+    private(set) var tape: TapeModel
     /// Плана ещё нет — показывается вход (МП18–МП21).
     private(set) var needsOnboarding: Bool
+
+    /// Предел глубины ленты вниз — 5 лет (МП23). Он же глубина пересчёта: числа
+    /// плана не должны зависеть от того, как далеко человек домотал ленту, поэтому
+    /// горизонт один и на всю глубину — иначе занятость спринта на ленте и
+    /// свободные деньги в раскладке расходились бы.
+    static let horizonMonths = 60
 
     private static var storeURL: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
@@ -39,7 +47,10 @@ final class AppModel {
             self.needsOnboarding = true
         }
         self.plan = loaded
-        self.horizon = PlanEngine.recompute(loaded, today: today, horizonMonths: 3)
+        let horizon = PlanEngine.recompute(loaded, today: today,
+                                           horizonMonths: Self.horizonMonths)
+        self.horizon = horizon
+        self.tape = TapeModel(plan: loaded, horizon: horizon, today: today)
         NotificationManager.reschedule(self)
     }
 
@@ -52,7 +63,13 @@ final class AppModel {
     private func mutate(_ change: (inout Plan) -> Void) {
         change(&plan)
         save()
-        horizon = PlanEngine.recompute(plan, today: today, horizonMonths: 3)  // П11
+        recompute()
+    }
+
+    /// Пересчёт неразложенного будущего (П11) и ленты по нему.
+    private func recompute() {
+        horizon = PlanEngine.recompute(plan, today: today, horizonMonths: Self.horizonMonths)
+        tape = TapeModel(plan: plan, horizon: horizon, today: today)
         NotificationManager.reschedule(self)
     }
 
@@ -75,7 +92,8 @@ final class AppModel {
         if let articles { temp.articles = articles }
         if let weekBoundary { temp.weekBoundary = weekBoundary }
         if temp.incomes.isEmpty { return false }
-        let rec = PlanEngine.recompute(temp, today: today, horizonMonths: 6).recommendation
+        let rec = PlanEngine.recompute(temp, today: today,
+                                       horizonMonths: Self.horizonMonths).recommendation
         return rec.fits
     }
 
@@ -128,7 +146,7 @@ final class AppModel {
     func preview(adding article: Article) -> HorizonRecommendation {
         var temp = plan
         temp.articles.append(article)
-        return PlanEngine.recompute(temp, today: today, horizonMonths: 6)
+        return PlanEngine.recompute(temp, today: today, horizonMonths: Self.horizonMonths)
     }
 
     // MARK: Выдача (С16, МП32)
@@ -165,8 +183,7 @@ final class AppModel {
         today = today.adding(days: days)
         UserDefaults.standard.set(today.dayNumber - Self.realToday.dayNumber,
                                   forKey: "debugDayOffset")
-        horizon = PlanEngine.recompute(plan, today: today, horizonMonths: 3)
-        NotificationManager.reschedule(self)
+        recompute()
     }
 
     func debugResetDay() {
@@ -179,15 +196,14 @@ final class AppModel {
         try? FileManager.default.removeItem(at: Self.storeURL)
         plan = Plan(namedWeek: 0, weekBoundary: 6, incomes: [], entryDate: today)
         needsOnboarding = true
-        horizon = PlanEngine.recompute(plan, today: today, horizonMonths: 3)
-        NotificationManager.reschedule(self)
+        recompute()
     }
 
     // MARK: Раскладка
 
     /// Черновик с фактической суммой прихода (МП27): план не меняет.
     func draft(for occurrenceId: String, factAmount: Double) -> HorizonRecommendation {
-        PlanEngine.recompute(plan, today: today, horizonMonths: 3,
+        PlanEngine.recompute(plan, today: today, horizonMonths: Self.horizonMonths,
                              factOverrides: [occurrenceId: factAmount])
     }
 

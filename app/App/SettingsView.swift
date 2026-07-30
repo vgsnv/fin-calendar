@@ -381,10 +381,7 @@ private struct IncomeEditor: View {
                     .font(.system(size: 15))
                     .foregroundStyle(Theme.textMuted)
                 Spacer()
-                Text("\(draft.day)-го")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(Theme.text)
-                StepperControl(value: $draft.day, range: 1...28)
+                DayGridButton(day: $draft.day, suffix: "-го")
             }
             HStack {
                 Text("ожидаемая сумма")

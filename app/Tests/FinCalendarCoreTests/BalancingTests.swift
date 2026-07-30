@@ -24,32 +24,32 @@ final class BalancingTests: XCTestCase {
                        BalancingIncome(id: "зарплата", factDate: CivilDate(2027, 7, 20), amount: 40_000)]
         let rec = balancer.recommend(incomes: incomes, weekStarts: weekStarts, needs: [])
 
-        XCTAssertTrue(rec.fits, "тонких мест нет, П9 молчит")
+        XCTAssertTrue(rec.fits, "недостач нет, П9 молчит")
         for w in rec.weeks { XCTAssertEqual(w.amount, 12_000, accuracy: 0.01) }
         // Свободные деньги — по приходам, не по горизонту (П6а)
         XCTAssertEqual(rec.freeMoney["аванс"]!, 36_000, accuracy: 0.01)
         XCTAssertEqual(rec.freeMoney["зарплата"]!, 16_000, accuracy: 0.01)
     }
 
-    // MARK: Кейс 2 · ровность недостижима — тонкое место (П6, П9)
+    // MARK: Кейс 2 · план не помещается — недостача с цифрой и датой (П6, П9)
 
-    func testCase2_thinWeeksDeclaredMaximinFirst() {
+    func testCase2_shortfallDeclaredWeeksStayFull() {
         let incomes = [BalancingIncome(id: "аванс", factDate: CivilDate(2027, 7, 5), amount: 30_000),
                        BalancingIncome(id: "зарплата", factDate: CivilDate(2027, 7, 20), amount: 18_000)]
         let insurance = Need(id: "страховка", name: "страховка", kind: .payment,
                              due: CivilDate(2027, 7, 28), amount: 12_000)
         let rec = balancer.recommend(incomes: incomes, weekStarts: weekStarts, needs: [insurance])
 
-        // Вариант 1 (максимин): все финнедели по 9 000
-        for w in rec.weeks {
-            XCTAssertEqual(w.amount, 9_000, accuracy: 0.01)
-            XCTAssertTrue(w.isThin, "тонкость констатируется с точной цифрой (П9)")
-        }
+        // Повседневные не гнутся никогда (П9): каждая финнеделя — полная порция
+        for w in rec.weeks { XCTAssertEqual(w.amount, 12_000, accuracy: 0.01) }
         XCTAssertFalse(rec.fits)
-        // Страховка собрана целиком
+        // Страховка собрана целиком; не хватает на последнюю финнеделю —
+        // недостача заявлена с точной цифрой и датой (П9)
         let collected = rec.contributions.filter { $0.needId == "страховка" }.reduce(0) { $0 + $1.amount }
         XCTAssertEqual(collected, 12_000, accuracy: 0.01)
-        XCTAssertTrue(rec.unmetNeeds.isEmpty)
+        XCTAssertEqual(rec.shortfalls.count, 1)
+        XCTAssertEqual(rec.shortfalls.first?.date, CivilDate(2027, 7, 31))
+        XCTAssertEqual(rec.shortfalls.first?.amount ?? 0, 12_000, accuracy: 0.01)
     }
 
     // MARK: Кейс 3 · короткое окно платежа (П7)
@@ -62,15 +62,15 @@ final class BalancingTests: XCTestCase {
         let rec = balancer.recommend(incomes: incomes, weekStarts: weekStarts, needs: [payment])
 
         // Ни один взнос — приходу после даты (П7)
-        XCTAssertEqual(contribution(rec, need: "платёж", income: "аванс"), 20_000, accuracy: 0.01)
         XCTAssertEqual(contribution(rec, need: "платёж", income: "зарплата"), 0, accuracy: 0.01)
-        // Спринт от 5-го — тонкие недели по 10 000; назад во времени не перекинуть (П9)
-        XCTAssertEqual(rec.weeks[0].amount, 10_000, accuracy: 0.01)
-        XCTAssertEqual(rec.weeks[1].amount, 10_000, accuracy: 0.01)
-        XCTAssertTrue(rec.weeks[0].isThin && rec.weeks[1].isThin)
-        // Спринт от 20-го — полная порция, излишек свободен (П6а)
-        XCTAssertEqual(rec.weeks[2].amount, 12_000, accuracy: 0.01)
-        XCTAssertEqual(rec.weeks[3].amount, 12_000, accuracy: 0.01)
+        // Недели живут полной порцией (П9); приход 5-го отдаёт платежу лишь остаток
+        for w in rec.weeks { XCTAssertEqual(w.amount, 12_000, accuracy: 0.01) }
+        XCTAssertEqual(contribution(rec, need: "платёж", income: "аванс"), 16_000, accuracy: 0.01)
+        // Назад во времени не перекинуть — недостача заявлена на дате платежа (П7, П9)
+        XCTAssertEqual(rec.shortfalls.count, 1)
+        XCTAssertEqual(rec.shortfalls.first?.date, CivilDate(2027, 7, 18))
+        XCTAssertEqual(rec.shortfalls.first?.amount ?? 0, 4_000, accuracy: 0.01)
+        // Спринт от 20-го живёт своим приходом, излишек свободен (П6а)
         XCTAssertEqual(rec.freeMoney["зарплата"]!, 16_000, accuracy: 0.01)
     }
 
@@ -95,7 +95,8 @@ final class BalancingTests: XCTestCase {
 
         let base = balancer.recommend(incomes: incomes, weekStarts: weekStarts, needs: needs)
         XCTAssertFalse(base.fits)
-        XCTAssertEqual(base.weeks[0].amount, 3_500, accuracy: 0.01, "скоростей больше, чем приходов минус повседневные")
+        XCTAssertFalse(base.shortfalls.isEmpty, "скоростей больше, чем приходов минус повседневные")
+        for w in base.weeks { XCTAssertEqual(w.amount, 12_000, accuracy: 0.01, "повседневные не гнутся (П9)") }
 
         let options = balancer.bendingOptions(incomes: incomes, weekStarts: weekStarts, needs: needs)
         XCTAssertFalse(options.isEmpty)
@@ -134,7 +135,7 @@ final class BalancingTests: XCTestCase {
         // Взносы нового платежа — по приходам от 20-го и далее (П7, П11)
         let total = rec.contributions.filter { $0.needId == "новый" }.reduce(0) { $0 + $1.amount }
         XCTAssertEqual(total, 15_000, accuracy: 0.01)
-        XCTAssertTrue(rec.fits, "будущее вмещает платёж без тонких мест")
+        XCTAssertTrue(rec.fits, "будущее вмещает платёж без недостач")
         // Ни одна цифра подтверждённой раскладки не изменилась (П12):
         // подтверждённое не входит во вход пересчёта — застыло по построению.
         XCTAssertEqual(confirmedWeeks, [12_000.0, 12_000.0])
