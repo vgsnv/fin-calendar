@@ -205,10 +205,15 @@ public enum PlanEngine {
         let confirmedIds = Set(plan.confirmed.map(\.incomeId))
 
         var occurrences: [IncomeOccurrence] = []
+        // Номинальный месяц опорной даты (СВ1) — группа ровности свободных денег (П6б):
+        // перенос может увести факт в соседний месяц, месяц самого прихода не меняя.
+        var nominalById: [String: CivilDate] = [:]
         for s in grid where s.end >= plan.entryDate {
-            for (day, fact) in zip(s.anchorDays, s.factDates) {
+            for (i, day) in s.anchorDays.enumerated() {
+                let fact = s.factDates[i]
                 let id = "\(day)@\(fact)"
                 guard !confirmedIds.contains(id), s.end >= today else { continue }
+                nominalById[id] = s.nominalDates[i]
                 occurrences.append(IncomeOccurrence(id: id, anchorDay: day, factDate: fact,
                                                     sprintStart: s.start, sprintWeeks: s.weeks,
                                                     plannedAmount: factOverrides[id] ?? amountByDay[day] ?? 0,
@@ -238,7 +243,8 @@ public enum PlanEngine {
                 amount -= take
                 extraContribs.append(Contribution(needId: a.id, incomeId: occ.id, amount: take))
             }
-            balancingIncomes.append(BalancingIncome(id: occ.id, factDate: occ.factDate, amount: amount))
+            balancingIncomes.append(BalancingIncome(id: occ.id, factDate: occ.factDate, amount: amount,
+                                                   nominalDate: nominalById[occ.id]))
         }
 
         // Дополнительная финнеделя длинного спринта в балансировку не входит:
@@ -298,7 +304,7 @@ public enum PlanEngine {
             }
         }
 
-        // Дополнительная финнеделя (С9–С10): системная статья с порцией повседневных
+        // Дополнительная финнеделя (С9–С10): системная статья с порцией недельных
         // на каждую лишнюю финнеделю длинного спринта. Собирается заранее, взносами
         // по приходам окна сбора — от предыдущего длинного спринта (или входа) до
         // старта самой лишней финнедели. Приходы длинного спринта в окно не входят:

@@ -24,7 +24,7 @@ public enum BentDecision: Equatable, Sendable {
 public enum SurplusSuggestion: Equatable, Sendable {
     case returnBent(BentDecision)
     case accelerateArticle(name: String)
-    case newPossibility            // новый замысел или повышение повседневных денег
+    case newPossibility            // новый замысел или повышение недельных денег
     case leaveAlone                // излишек выйдет из плана и не вернётся (С12а)
 }
 

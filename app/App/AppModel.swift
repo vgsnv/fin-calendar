@@ -41,7 +41,7 @@ final class AppModel {
         let loaded: Plan
         if let data = try? Data(contentsOf: Self.storeURL),
            let saved = try? JSONDecoder().decode(Plan.self, from: data) {
-            loaded = saved
+            loaded = Self.renamedChecklistKeys(saved)
             self.needsOnboarding = false
         } else {
             loaded = Plan(namedWeek: 0, weekBoundary: 6, incomes: [], entryDate: today)
@@ -54,6 +54,18 @@ final class AppModel {
         self.tape = TapeModel(plan: loaded, horizon: horizon, today: today,
                               pastMonths: Self.horizonMonths)
         NotificationManager.reschedule(self)
+    }
+
+    /// Строка недельных денег сменила ключ чек-листа ("everyday" → "weekly") вместе
+    /// с переименованием термина. Отметки исполнения — память человека (С12, П3),
+    /// и терять её из-за правки слова нельзя: старые раскладки читаются по-новому.
+    private static func renamedChecklistKeys(_ plan: Plan) -> Plan {
+        var plan = plan
+        for i in plan.confirmed.indices where plan.confirmed[i].executed.contains("everyday") {
+            plan.confirmed[i].executed.remove("everyday")
+            plan.confirmed[i].executed.insert("weekly")
+        }
+        return plan
     }
 
     private func save() {

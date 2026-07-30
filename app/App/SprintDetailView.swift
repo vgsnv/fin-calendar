@@ -2,7 +2,7 @@ import SwiftUI
 import FinCalendarCore
 
 /// Карточка спринта (tape.md, МП24): даты и состав спринта — взносы по статьям,
-/// повседневные деньги, свободные деньги, секция «на паузе».
+/// недельные деньги, свободные деньги, секция «на паузе».
 /// До раскладки показывается живая рекомендация (П11), после — застывшие цифры (П12):
 /// разложенный спринт — только чтение.
 struct SprintDetailView: View {
@@ -27,7 +27,7 @@ struct SprintDetailView: View {
                 VStack(spacing: 0) {
                     ForEach(rows) { row in
                         // Тап по строке статьи — правка (С1–С8): системные строки
-                        // («повседневные», доп. неделя) не статьи, их не открыть.
+                        // («недельные», доп. неделя) не статьи, их не открыть.
                         // В прошлом спринте строки не открываются — только чтение.
                         if !isPast, let article = article(for: row.id) {
                             Button { editingArticle = article } label: {
@@ -131,11 +131,11 @@ struct SprintDetailView: View {
     }
 
     /// Строки карточки: застывшая раскладка (П12) либо живая рекомендация (П11);
-    /// последней строкой — повседневные деньги спринта.
+    /// последней строкой — недельные деньги спринта.
     private func contributionRows(_ confirmed: ConfirmedLayout?) -> [Row] {
         var byNeed: [String: Double] = [:]
-        let everydayCount: Int
-        let everydayTotal: Double
+        let weeklyCount: Int
+        let weeklyTotal: Double
 
         // Статья лишней финнедели своего спринта — отдельной строкой ниже (С9).
         let ownExtra = "extra@\(occurrence.sprintStart)"
@@ -144,17 +144,17 @@ struct SprintDetailView: View {
             for c in confirmed.contributions where c.needId != ownExtra {
                 byNeed[c.needId, default: 0] += c.amount
             }
-            everydayCount = confirmed.weekAmounts.count
-            everydayTotal = confirmed.weekAmounts.reduce(0) { $0 + $1.amount }
+            weeklyCount = confirmed.weekAmounts.count
+            weeklyTotal = confirmed.weekAmounts.reduce(0) { $0 + $1.amount }
         } else {
             let rec = model.horizon.recommendation
             for c in rec.contributions where c.incomeId == occurrence.id && c.needId != ownExtra {
                 byNeed[c.needId, default: 0] += c.amount
             }
             let starts = (0..<occurrence.sprintWeeks).map { occurrence.sprintStart.adding(days: $0 * 7) }
-            let everyday = rec.weeks.filter { starts.contains($0.start) }
-            everydayCount = everyday.count
-            everydayTotal = everyday.reduce(0) { $0 + $1.amount }
+            let weekly = rec.weeks.filter { starts.contains($0.start) }
+            weeklyCount = weekly.count
+            weeklyTotal = weekly.reduce(0) { $0 + $1.amount }
         }
 
         var rows = byNeed.map { needId, amount in
@@ -167,10 +167,10 @@ struct SprintDetailView: View {
                             amount: model.extraWeekCollected(sprintStart: occurrence.sprintStart)))
         }
 
-        rows.append(Row(id: "everyday",
-                        name: "повседневные деньги",
-                        note: "\(everydayCount) \(weeksWord(everydayCount))",
-                        amount: everydayTotal))
+        rows.append(Row(id: "weekly",
+                        name: "недельные деньги",
+                        note: "\(weeklyCount) \(weeksWord(weeklyCount))",
+                        amount: weeklyTotal))
         return rows
     }
 

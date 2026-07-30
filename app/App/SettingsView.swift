@@ -7,7 +7,7 @@ struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
 
-    // Повседневные деньги
+    // Недельные деньги
     @State private var weekText = ""
     // Приходы: правки живут локально до «Сохранить приходы»
     @State private var incomeDrafts: [IncomeDraft] = []
@@ -19,7 +19,7 @@ struct SettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 8) {
                 header
-                sectionTitle("Повседневные деньги")
+                sectionTitle("Недельные деньги")
                 namedWeekCard
                 sectionTitle("Приходы")
                 incomesSection
@@ -103,7 +103,7 @@ struct SettingsView: View {
             .foregroundStyle(Theme.textMuted)
     }
 
-    // MARK: Повседневные деньги (МП36)
+    // MARK: Недельные деньги (МП36)
 
     private var parsedWeek: Double? {
         Double(weekText.replacingOccurrences(of: " ", with: ""))
