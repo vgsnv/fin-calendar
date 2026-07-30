@@ -14,6 +14,32 @@ enum Theme {
     static let accentSoft = Color(hex: 0xE4EEE9)
 }
 
+extension View {
+    /// Тап-зона иконочной кнопки — не меньше 44×44 (минимум HIG): значок на 15–17 pt
+    /// мельче пальца, и без этого человек мажет. Значок остаётся своего размера,
+    /// растёт только область попадания.
+    func tapTarget(_ side: CGFloat = 44) -> some View {
+        frame(minWidth: side, minHeight: side)
+            .contentShape(Rectangle())
+    }
+
+    /// Тап-зона строки: вся строка во всю ширину и не ниже 44. `contentShape`
+    /// обязателен — без него прозрачные части (отступы, место под Spacer'ом)
+    /// тап не ловят, и строка отзывается только на буквы и цифры.
+    func tapRow(minHeight: CGFloat = 44) -> some View {
+        frame(maxWidth: .infinity, alignment: .leading)
+            .frame(minHeight: minHeight)
+            .contentShape(Rectangle())
+    }
+
+    /// Тап-зона вокруг готовой фигуры (капсула, чип): визуальный размер не меняется,
+    /// вокруг добавляется прозрачный запас до `minHeight`.
+    func tapPadded(minHeight: CGFloat = 44, visualHeight: CGFloat) -> some View {
+        padding(.vertical, max(0, (minHeight - visualHeight) / 2))
+            .contentShape(Rectangle())
+    }
+}
+
 extension Color {
     init(hex: UInt32) {
         self.init(red: Double((hex >> 16) & 0xFF) / 255,

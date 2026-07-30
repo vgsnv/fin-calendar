@@ -64,6 +64,7 @@ struct SettingsView: View {
                 Image(systemName: "xmark")
                     .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(Theme.textMuted)
+                    .tapTarget()
             }
         }
         .padding(.bottom, 4)
@@ -205,7 +206,9 @@ struct SettingsView: View {
                         .font(.system(size: 15, weight: .medium))
                 }
                 .foregroundStyle(Theme.accent)
+                .tapRow()
             }
+            .buttonStyle(.plain)
             if thirdIncomeRefused {
                 footnote("Больше двух приходов — это уже общий календарь. В этой версии календарь только свой.")
             }
@@ -373,6 +376,7 @@ private struct IncomeEditor: View {
                         Image(systemName: "minus.circle")
                             .font(.system(size: 17))
                             .foregroundStyle(Theme.textMuted)
+                            .tapTarget()
                     }
                 }
             }

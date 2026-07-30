@@ -259,6 +259,19 @@ final class AppModel {
         plan.incomes.first { $0.anchor.day == anchorDay }?.anchor.name ?? "приход \(anchorDay)-го"
     }
 
+    /// Собранное статьёй «дополнительная неделя» длинного спринта (С9–С10): взносы
+    /// приходов окна — застывшие в подтверждённых раскладках (П12) плюс ещё только
+    /// рекомендованные. Приход самого спринта в сборе не участвует, пока в окне есть
+    /// другие, поэтому в его раскладке эта сумма — «собрано ранее» (layout.md).
+    func extraWeekCollected(sprintStart: CivilDate, in rec: Recommendation? = nil) -> Double {
+        let id = "extra@\(sprintStart)"
+        let frozen = plan.confirmed.flatMap(\.contributions)
+            .filter { $0.needId == id }.reduce(0) { $0 + $1.amount }
+        let planned = (rec ?? horizon.recommendation).contributions
+            .filter { $0.needId == id }.reduce(0) { $0 + $1.amount }
+        return frozen + planned
+    }
+
     func articleName(for needId: String) -> String {
         if needId.hasPrefix("extra@") { return "дополнительная неделя" }
         let articleId = needId.split(separator: "@").first.map(String.init) ?? needId

@@ -128,6 +128,7 @@ struct ArticleFormView: View {
                     Image(systemName: "xmark")
                         .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(Theme.textMuted)
+                        .tapTarget()
                 }
             }
             Text(subtitle)
@@ -388,7 +389,7 @@ struct ArticleFormView: View {
         }
         .padding(.vertical, 11)
         .padding(.horizontal, 14)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .tapRow()
     }
 
     private static func parse(_ text: String) -> Double? {

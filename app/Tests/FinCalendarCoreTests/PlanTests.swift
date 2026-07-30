@@ -95,25 +95,57 @@ final class PlanTests: XCTestCase {
 
     func testExtraWeekCollectedBeforeLongSprint() {
         let plan = makePlan()
-        let r = PlanEngine.recompute(plan, today: today, horizonMonths: 3)
-        guard let long = r.occurrences.first(where: { $0.isLongSprint }) else {
-            return XCTFail("в горизонте нет длинного спринта")
+        let r = PlanEngine.recompute(plan, today: today, horizonMonths: 6)
+        // Длинный спринт впереди: его окно сбора (С10) ещё не пройдено.
+        guard let long = r.occurrences.first(where: { $0.isLongSprint && $0.sprintStart > today })
+        else {
+            return XCTFail("в горизонте нет будущего длинного спринта")
         }
         let extraId = "extra@\(long.sprintStart)"
         let collected = r.recommendation.contributions
             .filter { $0.needId == extraId }.reduce(0) { $0 + $1.amount }
         XCTAssertEqual(collected, 12_000, accuracy: 0.01,
                        "порция повседневных денег собрана к старту длинного спринта")
-        // Все взносы — приходами до старта (П7)
-        for c in r.recommendation.contributions where c.needId == extraId {
-            let occ = r.occurrences.first { $0.id == c.incomeId }!
-            XCTAssertLessThanOrEqual(occ.factDate, long.sprintStart)
+
+        let extraContribs = r.recommendation.contributions.filter { $0.needId == extraId }
+        let sources = extraContribs.map { c in r.occurrences.first { $0.id == c.incomeId }! }
+        let extraWeekStart = long.sprintStart.adding(days: (long.sprintWeeks - 1) * 7)
+
+        // Окно сбора (С10): взносы — приходами обычных спринтов до лишней финнедели.
+        for occ in sources {
+            XCTAssertLessThan(occ.factDate, extraWeekStart, "взнос позже лишней финнедели (П7)")
+            XCTAssertNotEqual(occ.sprintStart, long.sprintStart,
+                              "приход длинного спринта оплачивает свою же лишнюю неделю (С9)")
+        }
+        // Размазано по приходам окна равными долями (МП21), а не куском на один приход.
+        XCTAssertGreaterThan(sources.count, 1, "сбор не размазан по окну")
+        let share = 12_000 / Double(sources.count)
+        for c in extraContribs {
+            XCTAssertEqual(c.amount, share, accuracy: 0.01, "доли приходов окна не равны")
         }
         // Лишняя неделя в балансировку не входит: её порция — статья,
         // двойного счёта не существует (С9).
         let extraStart = long.sprintStart.adding(days: (long.sprintWeeks - 1) * 7)
         XCTAssertFalse(r.recommendation.weeks.contains { $0.start == extraStart },
                        "дополнительная неделя оплачена из плана, не из прихода спринта повторно")
+    }
+
+    /// Вход рядом с длинным спринтом (МП21): окно сбора пусто — собирать не с чего,
+    /// потребность заявляется на старт лишней финнедели и живёт приходом спринта.
+    func testExtraWeekWithEmptyWindowFallsOnOwnIncome() {
+        let plan = makePlan()
+        let r = PlanEngine.recompute(plan, today: today, horizonMonths: 3)
+        // Длинный спринт, уже идущий на момент входа: приходов до его лишней недели нет.
+        guard let long = r.occurrences.first(where: { $0.isLongSprint && $0.sprintStart <= today })
+        else {
+            return XCTFail("в горизонте нет идущего длинного спринта")
+        }
+        let extraId = "extra@\(long.sprintStart)"
+        let contribs = r.recommendation.contributions.filter { $0.needId == extraId }
+        XCTAssertEqual(contribs.reduce(0) { $0 + $1.amount }, 12_000, accuracy: 0.01,
+                       "порция всё равно собрана — иначе лишняя неделя не оплачена")
+        XCTAssertEqual(contribs.map(\.incomeId), [long.id],
+                       "собирать больше не с чего: приход своего спринта")
     }
 
     // MARK: Платёж «без подготовки» (С3): недостача заявляется, недели не гнутся
@@ -135,10 +167,12 @@ final class PlanTests: XCTestCase {
         let w2 = r.recommendation.weeks.first { $0.start == sprintStart.adding(days: 7) }!
         XCTAssertEqual(w1.amount, 12_000, accuracy: 0.01)
         XCTAssertEqual(w2.amount, 12_000, accuracy: 0.01)
-        // Недостача заявлена с точной цифрой и датой (П9)
+        // Недостача заявлена с точной цифрой и датой (П9). Цифра — 7 000: 4 000
+        // от платежа без подготовки (С3) и 3 000 — доля дополнительной финнедели
+        // сентябрьского длинного спринта, которую этот приход собирает заранее (С9).
         let shortfall = r.recommendation.shortfalls.first
         XCTAssertEqual(shortfall?.date, sprintStart.adding(days: 7))
-        XCTAssertEqual(shortfall?.amount ?? 0, 4_000, accuracy: 0.01)
+        XCTAssertEqual(shortfall?.amount ?? 0, 7_000, accuracy: 0.01)
         // Платёж оплачен из прихода своего спринта
         let paid = r.recommendation.contributions.filter { $0.needId == "школа" }
         XCTAssertEqual(paid.reduce(0) { $0 + $1.amount }, 30_000, accuracy: 0.01)
