@@ -14,10 +14,11 @@ final class AppModel {
     /// Плана ещё нет — показывается вход (МП18–МП21).
     private(set) var needsOnboarding: Bool
 
-    /// Предел глубины ленты вниз — 5 лет (МП23). Он же глубина пересчёта: числа
-    /// плана не должны зависеть от того, как далеко человек домотал ленту, поэтому
-    /// горизонт один и на всю глубину — иначе занятость спринта на ленте и
-    /// свободные деньги в раскладке расходились бы.
+    /// Глубина ленты — 5 лет в каждую сторону (МП23). Вниз это ещё и глубина
+    /// пересчёта: числа плана не должны зависеть от того, как далеко человек
+    /// домотал ленту, поэтому горизонт один и на всю глубину — иначе занятость
+    /// спринта на ленте и свободные деньги в раскладке расходились бы.
+    /// Вверх сетка та же, но раньше даты входа в спринтах ничего нет.
     static let horizonMonths = 60
 
     private static var storeURL: URL {
@@ -50,7 +51,8 @@ final class AppModel {
         let horizon = PlanEngine.recompute(loaded, today: today,
                                            horizonMonths: Self.horizonMonths)
         self.horizon = horizon
-        self.tape = TapeModel(plan: loaded, horizon: horizon, today: today)
+        self.tape = TapeModel(plan: loaded, horizon: horizon, today: today,
+                              pastMonths: Self.horizonMonths)
         NotificationManager.reschedule(self)
     }
 
@@ -69,7 +71,8 @@ final class AppModel {
     /// Пересчёт неразложенного будущего (П11) и ленты по нему.
     private func recompute() {
         horizon = PlanEngine.recompute(plan, today: today, horizonMonths: Self.horizonMonths)
-        tape = TapeModel(plan: plan, horizon: horizon, today: today)
+        tape = TapeModel(plan: plan, horizon: horizon, today: today,
+                         pastMonths: Self.horizonMonths)
         NotificationManager.reschedule(self)
     }
 

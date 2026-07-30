@@ -36,6 +36,8 @@ struct TapeModel {
         let callToAction: Bool     // «Разложить»: плановая дата наступила (МП26)
         let blindNote: Bool        // спринт стартовал неразложенным — план слеп (С12)
         var isMissed: Bool = false // прошёл без раскладки (С15а) — прошлое, только чтение
+        // Раньше даты входа: спринт на сетке есть, в нём ничего — ни сумм, ни маркеров.
+        var isPrehistory: Bool = false
         var shortfall: Shortfall? = nil // план не сходится в этом спринте (П9)
         let occurrence: IncomeOccurrence
 
@@ -46,7 +48,8 @@ struct TapeModel {
     let namedWeek: Double
     let sprints: [SprintVM]
 
-    init(plan: Plan, horizon: HorizonRecommendation, today: CivilDate) {
+    /// `pastMonths` — глубина прошлого на сетке; будущее задаёт горизонт пересчёта.
+    init(plan: Plan, horizon: HorizonRecommendation, today: CivilDate, pastMonths: Int) {
         self.today = today
         self.namedWeek = plan.namedWeek
 
@@ -156,20 +159,23 @@ struct TapeModel {
                 occurrence: occ))
         }
 
-        // Прошлое ленты (С15а): спринты, прошедшие без раскладки, остаются видимыми —
-        // мотать в прошлое можно, менять там нечего. Восстановления задним числом нет.
+        // Прошлое ленты: сетка уходит вглубь на ту же глубину, что и будущее (МП23) —
+        // мотать можно куда угодно. Спринты после даты входа, прошедшие без раскладки,
+        // остаются видимыми (С15а): менять там нечего, восстановления задним числом нет.
+        // Раньше даты входа плана не существовало: спринт на сетке есть, в нём ничего.
         if !plan.incomes.isEmpty {
             let calendar = OwnCalendar(weekBoundary: plan.weekBoundary,
                                        anchors: plan.incomes.map(\.anchor),
                                        production: plan.production)
             let entry = plan.entryDate
-            let fromM = entry.month == 1 ? (entry.year - 1, 12) : (entry.year, entry.month - 1)
+            var fromY = today.year, fromMo = today.month - pastMonths - 1
+            while fromMo < 1 { fromMo += 12; fromY -= 1 }
             let toM = today.month == 12 ? (today.year + 1, 1) : (today.year, today.month + 1)
             let amountByDay = Dictionary(uniqueKeysWithValues:
                 plan.incomes.map { ($0.anchor.day, $0.plannedAmount) })
-            let grid = calendar.sprints(fromYear: fromM.0, fromMonth: fromM.1,
+            let grid = calendar.sprints(fromYear: fromY, fromMonth: fromMo,
                                         toYear: toM.0, toMonth: toM.1)
-            for s in grid where s.end >= entry && s.end < today {
+            for s in grid where s.end < today {
                 guard seen.insert(s.start.dayNumber).inserted,
                       let day = s.anchorDays.first, let fact = s.factDates.first else { continue }
                 let weeks = (0..<s.weeks).map { w in
@@ -180,12 +186,14 @@ struct TapeModel {
                                            sprintStart: s.start, sprintWeeks: s.weeks,
                                            plannedAmount: amountByDay[day] ?? 0,
                                            isLongSprint: s.isLong)
+                let prehistory = s.end < entry
                 sprints.append(SprintVM(start: s.start,
-                                        incomeName: incomeName(anchorDay: day),
-                                        incomeAmount: amountByDay[day] ?? 0,
+                                        incomeName: prehistory ? "" : incomeName(anchorDay: day),
+                                        incomeAmount: prehistory ? 0 : (amountByDay[day] ?? 0),
                                         occupancy: 0, weeks: weeks, isLong: s.isLong,
                                         isConfirmed: false, callToAction: false,
-                                        blindNote: false, isMissed: true,
+                                        blindNote: false, isMissed: !prehistory,
+                                        isPrehistory: prehistory,
                                         occurrence: occ))
             }
         }

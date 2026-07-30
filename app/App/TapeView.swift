@@ -8,9 +8,13 @@ struct TapeView: View {
     @State private var detailTarget: SprintTarget?
     @State private var dayTarget: DayTarget?
     @State private var showSettings = false
+    /// Спринты, чьи карточки сейчас построены лентой: по ним видно, ушёл ли
+    /// текущий спринт с экрана (для чипа возврата).
+    @State private var visibleSprints: Set<Int> = []
 
     var body: some View {
         let tape = model.tape
+        let current = tape.sprints.first { !$0.weeks.allSatisfy(\.isPast) }
         ScrollViewReader { proxy in
             ScrollView {
                 // Лента длинная (прошлое от входа, будущее на 5 лет вперёд, МП23):
@@ -24,6 +28,8 @@ struct TapeView: View {
                                    openDetail: { detailTarget = SprintTarget(occurrence: sprint.occurrence) },
                                    openDay: { dayTarget = DayTarget(date: $0) })
                             .id(sprint.id)
+                            .onAppear { visibleSprints.insert(sprint.id) }
+                            .onDisappear { visibleSprints.remove(sprint.id) }
                     }
                 }
                 .padding(.horizontal, 12)
@@ -31,8 +37,24 @@ struct TapeView: View {
             }
             // Прошлое выше по ленте — стартуем с текущего спринта.
             .onAppear {
-                if let current = tape.sprints.first(where: { !$0.weeks.allSatisfy(\.isPast) }) {
+                if let current {
                     proxy.scrollTo(current.id, anchor: .top)
+                }
+            }
+            // Возврат к текущей финнеделе — единственный плавающий элемент ленты
+            // (tape.md): лента глубока, домотавшемуся нужен путь обратно.
+            .overlay(alignment: .bottom) {
+                if let current {
+                    let away = !visibleSprints.isEmpty && !visibleSprints.contains(current.id)
+                    TodayChip(isAbove: current.id < (visibleSprints.min() ?? current.id)) {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            proxy.scrollTo(current.id, anchor: .top)
+                        }
+                    }
+                    .opacity(away ? 1 : 0)
+                    .offset(y: away ? 0 : 10)
+                    .allowsHitTesting(away)
+                    .animation(.easeInOut(duration: 0.2), value: away)
                 }
             }
         }
@@ -68,6 +90,36 @@ struct TapeView: View {
         }
         .padding(.horizontal, 8)
         .padding(.top, 8)
+    }
+}
+
+/// Чип возврата к текущей финнеделе (tape.md): виден только когда текущий спринт
+/// ушёл с экрана. Тише призыва «Разложить» — тот остаётся главным действием
+/// экрана (МП26): контур и бумажный фон, а не залитый акцент.
+private struct TodayChip: View {
+    let isAbove: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: isAbove ? "chevron.up" : "chevron.down")
+                    .font(.system(size: 11, weight: .semibold))
+                Text("сегодня")
+                    .font(.system(size: 14, weight: .medium))
+            }
+            .foregroundStyle(Theme.accent)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(
+                Capsule()
+                    .fill(Theme.surface)
+                    .strokeBorder(Theme.line, lineWidth: 1)
+                    .shadow(color: .black.opacity(0.08), radius: 10, y: 3)
+            )
+        }
+        .buttonStyle(.plain)
+        .padding(.bottom, 24)
     }
 }
 
@@ -109,7 +161,8 @@ private struct DebugDayChip: View {
         .background(Capsule().fill(model.isTimeShifted ? Theme.accent : Theme.subtle)
             .shadow(color: .black.opacity(0.12), radius: 8, y: 2))
         .padding(.trailing, 16)
-        .padding(.bottom, 24)
+        // Выше чипа возврата: тестовый сдвиг дня не должен его перекрывать.
+        .padding(.bottom, 80)
     }
 }
 #endif
@@ -125,7 +178,8 @@ struct SprintCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             boundary
-            occupancyBand
+            // Полоска занятости — про деньги прихода; до входа денег в плане не было.
+            if !sprint.isPrehistory { occupancyBand }
             // Недостача обязана быть видна без тапа (П9); цвет нейтральный (МП8).
             if let s = sprint.shortfall {
                 Text("план не сходится · к \(s.date.day) \(RU.monthsGen[s.date.month - 1]) не хватает \(RU.money(s.amount))")
@@ -133,8 +187,9 @@ struct SprintCard: View {
                     .foregroundStyle(Theme.accent)
             }
             ForEach(sprint.weeks) { week in
-                WeekRow(week: week, onDayTap: openDay)
-                if week.isExtra {
+                // До входа открывать нечего — ни спринт, ни статьи дня.
+                WeekRow(week: week, onDayTap: sprint.isPrehistory ? nil : openDay)
+                if week.isExtra, !sprint.isPrehistory {
                     Text("дополнительная неделя · оплачена из плана")
                         .font(.system(size: 12))
                         .foregroundStyle(Theme.textMuted)
@@ -154,9 +209,11 @@ struct SprintCard: View {
                 .fill(Theme.surface)
                 .strokeBorder(sprint.callToAction ? Theme.accent : Theme.line, lineWidth: 1)
         )
-        .opacity((sprint.isConfirmed || sprint.isMissed) && sprint.weeks.allSatisfy(\.isPast) ? 0.6 : 1)
+        .opacity((sprint.isConfirmed || sprint.isMissed || sprint.isPrehistory)
+                 && sprint.weeks.allSatisfy(\.isPast) ? 0.6 : 1)
         .contentShape(Rectangle())
-        .onTapGesture { openDetail() }
+        // До даты входа открывать нечего: ни раскладки, ни рекомендации.
+        .onTapGesture { if !sprint.isPrehistory { openDetail() } }
     }
 
     /// Выдача (С16, МП32): тихое действие у текущей финнедели разложенного спринта.
@@ -195,10 +252,14 @@ struct SprintCard: View {
     private var boundary: some View {
         HStack(alignment: .center, spacing: 8) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("\(sprint.start.day) \(RU.monthsGen[sprint.start.month - 1]) · \(sprint.incomeName)")
+                // До даты входа у спринта есть только границы: имени прихода и суммы
+                // тогда не существовало, придумывать их задним числом нельзя (П5).
+                Text(sprint.isPrehistory
+                     ? "\(sprint.start.day) \(RU.monthsGen[sprint.start.month - 1])"
+                     : "\(sprint.start.day) \(RU.monthsGen[sprint.start.month - 1]) · \(sprint.incomeName)")
                     .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(Theme.text)
-                subtitle
+                    .foregroundStyle(sprint.isPrehistory ? Theme.textMuted : Theme.text)
+                if !sprint.isPrehistory { subtitle }
             }
             Spacer()
             if sprint.callToAction {
@@ -262,6 +323,7 @@ struct WeekRow: View {
                     DayCell(day: day, week: week)
                 }
                 .buttonStyle(.plain)
+                .disabled(onDayTap == nil)
                 .frame(maxWidth: .infinity)
             }
         }
