@@ -186,13 +186,13 @@ private struct DraftView: View {
         let everyday = rec.weeks.filter { weekStarts.contains($0.start) }
         let total = everyday.reduce(0) { $0 + $1.amount }
         rows.append(Row(id: "everyday",
-                        name: "повседневные деньги",
-                        note: "\(everyday.count) × \(RU.money(model.plan.namedWeek))",
+                        name: "недельные деньги",
+                        note: "\(RU.weeks(everyday.count)) × \(RU.money(model.plan.namedWeek))",
                         amount: total))
         return rows
     }
 
-    /// Недостача заявляется с цифрой и датой (П9); повседневные не гнутся —
+    /// Недостача заявляется с цифрой и датой (П9); недельные деньги не гнутся —
     /// решения человек принимает правкой статей (П8).
     @ViewBuilder
     private func shortfallNotes(_ rec: Recommendation) -> some View {
@@ -225,14 +225,14 @@ private struct ChecklistView: View {
         }
         .sorted { (model.needOrder(for: $0.key), $0.name) < (model.needOrder(for: $1.key), $1.name) }
 
-        // Порядок исполнения (МП28): дополнительная неделя — перед повседневными.
+        // Порядок исполнения (МП28): дополнительная неделя — перед недельными деньгами.
         if occurrence.isLongSprint {
             result.append((key: ownExtra, name: "дополнительная неделя", note: "собрано ранее",
                            amount: model.extraWeekCollected(sprintStart: occurrence.sprintStart)))
         }
         let total = layout.weekAmounts.reduce(0) { $0 + $1.amount }
-        result.append((key: "everyday", name: "повседневные деньги",
-                       note: "\(layout.weekAmounts.count) недели", amount: total))
+        result.append((key: "everyday", name: "недельные деньги",
+                       note: RU.weeks(layout.weekAmounts.count), amount: total))
         return result
     }
 
@@ -333,7 +333,8 @@ private struct SurplusSheet: View {
                 .font(.system(size: 15, weight: .medium)).foregroundStyle(Theme.text)
                 .padding(.bottom, 8)
             row("ускорить статью", "появится в следующей версии", disabled: true)
-            row("новый замысел или поднять неделю", "появится в следующей версии", disabled: true)
+            row("новый замысел или повышение недельных денег",
+                "появится в следующей версии", disabled: true)
             Button { dismiss() } label: {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("ничего не трогать")

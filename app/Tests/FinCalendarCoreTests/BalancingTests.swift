@@ -3,7 +3,7 @@ import XCTest
 
 /// Приёмочные тесты балансировки по эталону tests/balancing.md (кейсы 1–6).
 /// Сквозной пример: приходы 5-го и 20-го, спринты по 2 финнедели,
-/// повседневные деньги — 12 000/финнеделя. Даты — июль 2027 (граница — суббота):
+/// недельные деньги — 12 000/финнеделя. Даты — июль 2027 (граница — суббота):
 /// приход 5.07 → старт 10.07 (недели 10.07, 17.07); приход 20.07 → старт 24.07
 /// (недели 24.07, 31.07).
 final class BalancingTests: XCTestCase {
@@ -40,7 +40,7 @@ final class BalancingTests: XCTestCase {
                              due: CivilDate(2027, 7, 28), amount: 12_000)
         let rec = balancer.recommend(incomes: incomes, weekStarts: weekStarts, needs: [insurance])
 
-        // Повседневные не гнутся никогда (П9): каждая финнеделя — полная порция
+        // Недельные деньги не гнутся никогда (П9): каждая финнеделя — полная порция
         for w in rec.weeks { XCTAssertEqual(w.amount, 12_000, accuracy: 0.01) }
         XCTAssertFalse(rec.fits)
         // Страховка собрана целиком; не хватает на последнюю финнеделю —
@@ -95,8 +95,8 @@ final class BalancingTests: XCTestCase {
 
         let base = balancer.recommend(incomes: incomes, weekStarts: weekStarts, needs: needs)
         XCTAssertFalse(base.fits)
-        XCTAssertFalse(base.shortfalls.isEmpty, "скоростей больше, чем приходов минус повседневные")
-        for w in base.weeks { XCTAssertEqual(w.amount, 12_000, accuracy: 0.01, "повседневные не гнутся (П9)") }
+        XCTAssertFalse(base.shortfalls.isEmpty, "скоростей больше, чем приходов минус недельные деньги")
+        for w in base.weeks { XCTAssertEqual(w.amount, 12_000, accuracy: 0.01, "недельные деньги не гнутся (П9)") }
 
         let options = balancer.bendingOptions(incomes: incomes, weekStarts: weekStarts, needs: needs)
         XCTAssertFalse(options.isEmpty)
@@ -112,7 +112,7 @@ final class BalancingTests: XCTestCase {
         XCTAssertEqual(kinds.first, 0)
         XCTAssertEqual(kinds.last, 2)
         // Урезание недели вариантом не является (П9): все варианты гнут статьи
-        // (гарантировано типом Bending — повседневных денег в нём нет по построению).
+        // (гарантировано типом Bending — недельных денег в нём нет по построению).
     }
 
     // MARK: Кейс 5 · правка посреди горизонта — граница пересчёта (П12)

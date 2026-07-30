@@ -86,7 +86,8 @@ final class AppModel {
         mutate { _ in }
     }
 
-    /// Проверка «помещается» для называемой недели (МП20): временный план, не сохраняется.
+    /// Проверка «помещается» для названных недельных денег (МП20): временный план,
+    /// не сохраняется. `namedWeek` — имя поля модели, на экране это «недельные деньги».
     func fits(namedWeek: Double, incomes: [PlannedIncome]? = nil,
               articles: [Article]? = nil, weekBoundary: Int? = nil) -> Bool {
         var temp = plan
@@ -100,7 +101,7 @@ final class AppModel {
         return rec.fits
     }
 
-    /// «Посчитать за меня» (МП20): максимум недели, при котором план помещается.
+    /// «Посчитать за меня» (МП20): максимум недельных денег, при котором план помещается.
     func maxFittingWeek(incomes: [PlannedIncome]? = nil, articles: [Article]? = nil,
                         weekBoundary: Int? = nil) -> Double {
         var lo = 0.0, hi = 1_000_000.0
@@ -164,7 +165,7 @@ final class AppModel {
 
     // MARK: Настройки (МП35–МП36)
 
-    /// Смена недели — не перезапуск: действует со следующей раскладки (МП36).
+    /// Смена недельных денег — не перезапуск: действует со следующей раскладки (МП36).
     func setNamedWeek(_ value: Double) {
         mutate { $0.namedWeek = value }
     }

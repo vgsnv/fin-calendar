@@ -240,7 +240,8 @@ struct SprintCard: View {
                     model.issueWeek(weekStart: week.start)
                 } label: {
                     HStack {
-                        Text("Новая финнеделя")
+                        // Одно имя события на кнопке, в уведомлении и в спеке (МП12г).
+                        Text("Новая неделя")
                         Spacer()
                         Text("выдать \(RU.money(amount))")
                     }

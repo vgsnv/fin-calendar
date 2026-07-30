@@ -19,7 +19,7 @@ struct OnboardingView: View {
     @State private var showArticleForm = false
     @State private var editingArticle: Article?
 
-    // Шаг 3 — неделя и граница финнедели.
+    // Шаг 3 — недельные деньги и граница финнедели.
     @State private var weekText = ""
     @State private var weekBoundary = 6   // суббота — рекомендация С13
     @State private var ceiling = 0.0
@@ -281,7 +281,7 @@ struct OnboardingView: View {
         }
     }
 
-    // MARK: Шаг 3 · Повседневные деньги (МП20)
+    // MARK: Шаг 3 · Недельные деньги (МП20)
 
     private var step3: some View {
         let week = parsedWeek
@@ -372,7 +372,7 @@ struct OnboardingView: View {
                         .font(.system(size: 15))
                         .foregroundStyle(Theme.text)
                 }
-                Text("Неделя: \(RU.money(parsedWeek)) ₽.")
+                Text("Недельные деньги: \(RU.money(parsedWeek)) ₽.")
                     .font(.system(size: 15))
                     .foregroundStyle(Theme.text)
             }

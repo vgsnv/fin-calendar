@@ -7,7 +7,7 @@ struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
 
-    // Повседневные деньги
+    // Недельные деньги
     @State private var weekText = ""
     // Приходы: правки живут локально до «Сохранить приходы»
     @State private var incomeDrafts: [IncomeDraft] = []
@@ -19,11 +19,11 @@ struct SettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 8) {
                 header
-                sectionTitle("Повседневные деньги")
+                sectionTitle("Недельные деньги")
                 namedWeekCard
                 sectionTitle("Приходы")
                 incomesSection
-                sectionTitle("Граница финнедели")
+                sectionTitle("Граница недели")
                 boundaryCard
                 sectionTitle("Производственный календарь")
                 productionCard
@@ -103,7 +103,7 @@ struct SettingsView: View {
             .foregroundStyle(Theme.textMuted)
     }
 
-    // MARK: Повседневные деньги (МП36)
+    // MARK: Недельные деньги (МП36)
 
     private var parsedWeek: Double? {
         Double(weekText.replacingOccurrences(of: " ", with: ""))
@@ -119,7 +119,8 @@ struct SettingsView: View {
             card {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        Text("на финнеделю")
+                        // Одна подпись порции на всех экранах — «в неделю» (МП12в).
+                        Text("в неделю")
                             .font(.system(size: 15))
                             .foregroundStyle(Theme.textMuted)
                             .fixedSize()
@@ -278,7 +279,7 @@ struct SettingsView: View {
                         get: { model.plan.notifyLayout },
                         set: { model.setNotifications(layout: $0, issue: model.plan.notifyIssue) }))
             Divider().overlay(Theme.line)
-            toggleRow("выдача", note: "началась финнеделя — пора выдать порцию",
+            toggleRow("выдача", note: "началась неделя — пора выдать порцию",
                       isOn: Binding(
                         get: { model.plan.notifyIssue },
                         set: { model.setNotifications(layout: model.plan.notifyLayout, issue: $0) }))

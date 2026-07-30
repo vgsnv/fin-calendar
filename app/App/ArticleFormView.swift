@@ -275,7 +275,7 @@ struct ArticleFormView: View {
     @ViewBuilder
     private func consequenceLine(_ rec: Recommendation) -> some View {
         if rec.fits {
-            Text("план помещается · неделя останется \(RU.money(model.plan.namedWeek))")
+            Text("план помещается · недельные деньги останутся \(RU.money(model.plan.namedWeek))")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(Theme.textMuted)
         } else if let s = rec.shortfalls.first {

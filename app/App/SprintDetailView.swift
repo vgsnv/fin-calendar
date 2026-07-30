@@ -2,7 +2,7 @@ import SwiftUI
 import FinCalendarCore
 
 /// Карточка спринта (tape.md, МП24): даты и состав спринта — взносы по статьям,
-/// повседневные деньги, свободные деньги, секция «на паузе».
+/// недельные деньги, свободные деньги, секция «на паузе».
 /// До раскладки показывается живая рекомендация (П11), после — застывшие цифры (П12):
 /// разложенный спринт — только чтение.
 struct SprintDetailView: View {
@@ -27,7 +27,7 @@ struct SprintDetailView: View {
                 VStack(spacing: 0) {
                     ForEach(rows) { row in
                         // Тап по строке статьи — правка (С1–С8): системные строки
-                        // («повседневные», доп. неделя) не статьи, их не открыть.
+                        // («недельные», доп. неделя) не статьи, их не открыть.
                         // В прошлом спринте строки не открываются — только чтение.
                         if !isPast, let article = article(for: row.id) {
                             Button { editingArticle = article } label: {
@@ -110,7 +110,7 @@ struct SprintDetailView: View {
     }
 
     private func subtitle(_ confirmed: ConfirmedLayout?) -> String {
-        var parts = ["\(occurrence.sprintWeeks) \(finweeksWord(occurrence.sprintWeeks))"]
+        var parts = [RU.weeks(occurrence.sprintWeeks)]
         if occurrence.isLongSprint { parts.append("длинный спринт") }
         parts.append(model.incomeName(anchorDay: occurrence.anchorDay))
         if let confirmed {
@@ -131,7 +131,7 @@ struct SprintDetailView: View {
     }
 
     /// Строки карточки: застывшая раскладка (П12) либо живая рекомендация (П11);
-    /// последней строкой — повседневные деньги спринта.
+    /// последней строкой — недельные деньги спринта.
     private func contributionRows(_ confirmed: ConfirmedLayout?) -> [Row] {
         var byNeed: [String: Double] = [:]
         let everydayCount: Int
@@ -168,8 +168,8 @@ struct SprintDetailView: View {
         }
 
         rows.append(Row(id: "everyday",
-                        name: "повседневные деньги",
-                        note: "\(everydayCount) \(weeksWord(everydayCount))",
+                        name: "недельные деньги",
+                        note: RU.weeks(everydayCount),
                         amount: everydayTotal))
         return rows
     }
@@ -320,15 +320,3 @@ private struct SprintContributionRow: View {
         .contentShape(Rectangle())
     }
 }
-
-// MARK: Склонения
-
-private func pluralRU(_ n: Int, _ one: String, _ few: String, _ many: String) -> String {
-    let m10 = n % 10, m100 = n % 100
-    if m10 == 1 && m100 != 11 { return one }
-    if (2...4).contains(m10) && !(12...14).contains(m100) { return few }
-    return many
-}
-
-private func finweeksWord(_ n: Int) -> String { pluralRU(n, "финнеделя", "финнедели", "финнедель") }
-private func weeksWord(_ n: Int) -> String { pluralRU(n, "неделя", "недели", "недель") }
