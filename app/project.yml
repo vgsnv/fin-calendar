@@ -22,4 +22,10 @@ targets:
         # устройство — автоподпись командой из Xcode.
         CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]: NO
         CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: 8GR9Z4XGCV
         SWIFT_VERSION: "5.9"
+    # Без этого xcodegen подавляет автосоздание схем, и в Xcode
+    # нечего запускать: остаётся только схема пакета FinCalendarCore.
+    scheme:
+      testTargets:
+        - package: FinCalendarCore/FinCalendarCoreTests
