@@ -157,14 +157,29 @@ private struct DraftView: View {
     }
 
     private func draftRows(_ rec: Recommendation) -> [Row] {
+        // Статья лишней финнедели этого же спринта — отдельной строкой ниже:
+        // её собирали приходы окна, а не этот приход (С9).
+        let ownExtra = "extra@\(occurrence.sprintStart)"
         var byNeed: [String: Double] = [:]
-        for c in rec.contributions where c.incomeId == occurrence.id {
+        for c in rec.contributions where c.incomeId == occurrence.id && c.needId != ownExtra {
             byNeed[c.needId, default: 0] += c.amount
         }
         var rows: [Row] = byNeed.map { needId, amount in
             Row(id: needId, name: model.articleName(for: needId), note: nil, amount: amount)
         }
         .sorted { (model.needOrder(for: $0.id), $0.name) < (model.needOrder(for: $1.id), $1.name) }
+
+        // Длинный спринт: лишняя финнеделя оплачена собранным заранее (С9, layout.md).
+        if occurrence.isLongSprint {
+            let collected = model.extraWeekCollected(sprintStart: occurrence.sprintStart, in: rec)
+            let own = rec.contributions
+                .filter { $0.needId == ownExtra && $0.incomeId == occurrence.id }
+                .reduce(0) { $0 + $1.amount }
+            rows.append(Row(id: ownExtra, name: "дополнительная неделя",
+                            note: own > 0.01 ? "в том числе с этого прихода \(RU.money(own))"
+                                             : "собрано ранее",
+                            amount: collected))
+        }
 
         let weekStarts = (0..<occurrence.sprintWeeks).map { occurrence.sprintStart.adding(days: $0 * 7) }
         let everyday = rec.weeks.filter { weekStarts.contains($0.start) }
@@ -199,12 +214,21 @@ private struct ChecklistView: View {
     @Environment(AppModel.self) private var model
 
     private var rows: [(key: String, name: String, note: String?, amount: Double)] {
+        let ownExtra = "extra@\(occurrence.sprintStart)"
         var byNeed: [String: Double] = [:]
-        for c in layout.contributions { byNeed[c.needId, default: 0] += c.amount }
+        for c in layout.contributions where c.needId != ownExtra {
+            byNeed[c.needId, default: 0] += c.amount
+        }
         var result = byNeed.map { needId, amount in
             (key: needId, name: model.articleName(for: needId), note: String?.none, amount: amount)
         }
         .sorted { (model.needOrder(for: $0.key), $0.name) < (model.needOrder(for: $1.key), $1.name) }
+
+        // Порядок исполнения (МП28): дополнительная неделя — перед повседневными.
+        if occurrence.isLongSprint {
+            result.append((key: ownExtra, name: "дополнительная неделя", note: "собрано ранее",
+                           amount: model.extraWeekCollected(sprintStart: occurrence.sprintStart)))
+        }
         let total = layout.weekAmounts.reduce(0) { $0 + $1.amount }
         result.append((key: "everyday", name: "повседневные деньги",
                        note: "\(layout.weekAmounts.count) недели", amount: total))

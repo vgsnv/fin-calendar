@@ -298,15 +298,40 @@ public enum PlanEngine {
             }
         }
 
-        // Дополнительная финнеделя (С9–С10): системная статья, по порции на каждую
-        // лишнюю финнеделю длинного спринта; окно сбора — до его старта.
+        // Дополнительная финнеделя (С9–С10): системная статья с порцией повседневных
+        // на каждую лишнюю финнеделю длинного спринта. Собирается заранее, взносами
+        // по приходам окна сбора — от предыдущего длинного спринта (или входа) до
+        // старта самой лишней финнедели. Приходы длинного спринта в окно не входят:
+        // лишняя неделя оплачена собранным, а не приходом своего же спринта — в этом
+        // смысл С9. Взнос — со сроком в дату своего прихода: так поздние приходы
+        // потребность не кормят по построению (П7), а недостача заявляется датой того
+        // прихода, на котором деньги кончились (П9).
+        let longStarts = occurrences.filter(\.isLongSprint).map(\.sprintStart).sorted()
         for occ in occurrences where occ.isLongSprint {
             let id = "extra@\(occ.sprintStart)"
-            let remaining = plan.namedWeek - plan.confirmed.flatMap(\.contributions)
+            let collected = plan.confirmed.flatMap(\.contributions)
                 .filter { $0.needId == id }.reduce(0) { $0 + $1.amount }
-            if remaining > 1e-9 {
+            let remaining = plan.namedWeek - collected
+            guard remaining > 1e-9 else { continue }
+            let extraStart = occ.sprintStart.adding(days: (occ.sprintWeeks - 1) * 7)
+            let windowStart = longStarts.last { $0 < occ.sprintStart }
+            let window = occurrences.filter {
+                $0.sprintStart != occ.sprintStart && $0.factDate < extraStart
+                    && (windowStart == nil || $0.factDate >= windowStart!)
+            }
+            if window.isEmpty {
+                // Вход рядом с длинным спринтом (МП21): собирать не с чего — потребность
+                // заявляется на старт лишней финнедели, не поместится — недостача (П9).
                 needs.append(Need(id: id, name: "дополнительная неделя", kind: .payment,
-                                  due: occ.sprintStart, amount: remaining))
+                                  due: extraStart, amount: remaining))
+            } else {
+                // Остаток делится по приходам окна равными долями (МП21): пропущенный
+                // сбор увеличивает доли оставшихся приходов, а не исчезает (П11, П12).
+                let share = remaining / Double(window.count)
+                for w in window {
+                    needs.append(Need(id: id, name: "дополнительная неделя", kind: .payment,
+                                      due: w.factDate, amount: share))
+                }
             }
         }
 

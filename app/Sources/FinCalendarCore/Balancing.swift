@@ -162,10 +162,16 @@ public struct Balancer: Sendable {
                                 needs: needs.filter { $0.name != n.name })
             options.append(BendingOption(bending: .pauseIntent(needName: n.name), recomputed: rec))
         }
-        for n in needs where n.kind == .payment {
-            var shifted = needs.filter { $0.id != n.id }
-            shifted.append(Need(id: n.id, name: n.name, kind: .payment,
-                                due: n.due.adding(days: paymentShiftDays), amount: n.amount))
+        // Платёж, живущий несколькими потребностями (ежемесячный — по одной на месяц,
+        // дополнительная неделя — по одной на приход окна), даёт один вариант, а не
+        // по варианту на потребность: человеку предлагается сдвинуть статью.
+        for n in names(.payment) {
+            let shifted = needs.map { need in
+                need.kind == .payment && need.name == n.name
+                    ? Need(id: need.id, name: need.name, kind: .payment,
+                           due: need.due.adding(days: paymentShiftDays), amount: need.amount)
+                    : need
+            }
             let rec = recommend(incomes: incomes, weekStarts: weekStarts, needs: shifted)
             options.append(BendingOption(bending: .shiftPaymentDate(needName: n.name, days: paymentShiftDays),
                                          recomputed: rec))

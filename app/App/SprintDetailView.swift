@@ -135,13 +135,18 @@ struct SprintDetailView: View {
         let everydayCount: Int
         let everydayTotal: Double
 
+        // Статья лишней финнедели своего спринта — отдельной строкой ниже (С9).
+        let ownExtra = "extra@\(occurrence.sprintStart)"
+
         if let confirmed {
-            for c in confirmed.contributions { byNeed[c.needId, default: 0] += c.amount }
+            for c in confirmed.contributions where c.needId != ownExtra {
+                byNeed[c.needId, default: 0] += c.amount
+            }
             everydayCount = confirmed.weekAmounts.count
             everydayTotal = confirmed.weekAmounts.reduce(0) { $0 + $1.amount }
         } else {
             let rec = model.horizon.recommendation
-            for c in rec.contributions where c.incomeId == occurrence.id {
+            for c in rec.contributions where c.incomeId == occurrence.id && c.needId != ownExtra {
                 byNeed[c.needId, default: 0] += c.amount
             }
             let starts = (0..<occurrence.sprintWeeks).map { occurrence.sprintStart.adding(days: $0 * 7) }
@@ -154,6 +159,11 @@ struct SprintDetailView: View {
             Row(id: needId, name: model.articleName(for: needId), note: nil, amount: amount)
         }
         .sorted { (model.needOrder(for: $0.id), $0.name) < (model.needOrder(for: $1.id), $1.name) }
+
+        if occurrence.isLongSprint {
+            rows.append(Row(id: ownExtra, name: "дополнительная неделя", note: "собрано ранее",
+                            amount: model.extraWeekCollected(sprintStart: occurrence.sprintStart)))
+        }
 
         rows.append(Row(id: "everyday",
                         name: "повседневные деньги",
