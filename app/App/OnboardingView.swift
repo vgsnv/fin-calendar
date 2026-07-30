@@ -88,6 +88,8 @@ struct OnboardingView: View {
                             Text("назад").font(.system(size: 15))
                         }
                         .foregroundStyle(Theme.textMuted)
+                        .padding(.trailing, 12)
+                        .tapPadded(visualHeight: 20)
                     }
                     Spacer()
                 }
@@ -234,7 +236,9 @@ struct OnboardingView: View {
                     Text("+ статья")
                         .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(Theme.accent)
+                        .tapRow()
                 }
+                .buttonStyle(.plain)
                 .listRowBackground(Theme.surface)
                 .listRowSeparatorTint(Theme.line)
             }
@@ -259,6 +263,7 @@ struct OnboardingView: View {
                 .foregroundStyle(Theme.textFaint)
         }
         .padding(.vertical, 2)
+        .tapRow()
     }
 
     /// Строка по виду статьи (articles.md): платёж · замысел · фонд.
@@ -458,6 +463,7 @@ private struct EntryIncomeCard: View {
                         Image(systemName: "xmark")
                             .font(.system(size: 13, weight: .medium))
                             .foregroundStyle(Theme.textMuted)
+                            .tapTarget()
                     }
                 }
             }

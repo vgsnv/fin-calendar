@@ -33,6 +33,7 @@ struct SprintDetailView: View {
                             Button { editingArticle = article } label: {
                                 SprintContributionRow(name: row.name, note: row.note,
                                                       amount: row.amount, editable: true)
+                                    .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                         } else {
@@ -93,6 +94,7 @@ struct SprintDetailView: View {
                     Image(systemName: "xmark")
                         .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(Theme.textMuted)
+                        .tapTarget()
                 }
             }
             Text(subtitle(confirmed))
@@ -215,6 +217,7 @@ struct SprintDetailView: View {
                     .padding(.horizontal, 12)
                     .padding(.vertical, 7)
                     .background(Capsule().fill(Theme.accentSoft))
+                    .tapPadded(visualHeight: 30)
             }
         }
         .padding(.vertical, 11)

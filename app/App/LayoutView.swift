@@ -112,6 +112,7 @@ private struct DraftView: View {
                     Image(systemName: "xmark")
                         .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(Theme.textMuted)
+                        .tapTarget()
                 }
             }
             Text("\(model.incomeName(anchorDay: occurrence.anchorDay)) · \(occurrence.factDate.day) \(RU.monthsGen[occurrence.factDate.month - 1]) · \(isTemplate ? "шаблон" : "черновик")")
@@ -270,7 +271,10 @@ private struct ChecklistView: View {
                                                      ? Theme.accent : Theme.line)
                                 LayoutRow(name: row.name, note: row.note, amount: row.amount)
                             }
+                            .padding(.leading, 14)
+                            .tapRow()
                         }
+                        .buttonStyle(.plain)
                         if row.key != rows.last?.key { Divider().overlay(Theme.line) }
                     }
                 }
@@ -338,8 +342,9 @@ private struct SurplusSheet: View {
                         .font(.system(size: 12)).foregroundStyle(Theme.textMuted)
                 }
                 .padding(.vertical, 14)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .tapRow()
             }
+            .buttonStyle(.plain)
         }
         .padding(20)
         .presentationDetents([.height(280)])

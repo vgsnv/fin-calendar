@@ -16,12 +16,15 @@ struct TapeView: View {
         let tape = model.tape
         let current = tape.sprints.first { !$0.weeks.allSatisfy(\.isPast) }
         ScrollViewReader { proxy in
-            ScrollView {
-                // Лента длинная (прошлое от входа, будущее на 5 лет вперёд, МП23):
-                // спринты строятся по мере подхода к ним, иначе весь горизонт
-                // рендерился бы разом и мотать было бы нечем.
+            // Шапка закреплена, а не лежит первым элементом прокрутки: лента уходит
+            // на годы в обе стороны, и «верх ленты» с тихим входом в настройки
+            // (tape.md) иначе недостижим — до него надо мотать пять лет назад.
+            VStack(spacing: 0) {
+                header(tape)
+                ScrollView {
+                // Лента длинная (5 лет в каждую сторону, МП23): спринты строятся
+                // по мере подхода, иначе весь горизонт рендерился бы разом.
                 LazyVStack(spacing: 10) {
-                    header(tape)
                     ForEach(tape.sprints) { sprint in
                         SprintCard(sprint: sprint, tape: tape,
                                    openLayout: { layoutTarget = SprintTarget(occurrence: sprint.occurrence) },
@@ -57,6 +60,7 @@ struct TapeView: View {
                     .animation(.easeInOut(duration: 0.2), value: away)
                 }
             }
+            }
         }
         .background(Theme.bg)
         #if DEBUG
@@ -86,6 +90,7 @@ struct TapeView: View {
                 Image(systemName: "gearshape")
                     .font(.system(size: 17))
                     .foregroundStyle(Theme.textMuted)
+                    .tapTarget()
             }
         }
         .padding(.horizontal, 8)
@@ -117,9 +122,10 @@ private struct TodayChip: View {
                     .strokeBorder(Theme.line, lineWidth: 1)
                     .shadow(color: .black.opacity(0.08), radius: 10, y: 3)
             )
+            .tapPadded(visualHeight: 36)
         }
         .buttonStyle(.plain)
-        .padding(.bottom, 24)
+        .padding(.bottom, 20)
     }
 }
 
@@ -319,12 +325,15 @@ struct WeekRow: View {
         HStack(spacing: 0) {
             ForEach(week.days) { day in
                 // Тап по дате — статьи этого дня (список и добавление).
+                // Рамка внутри метки, а не снаружи кнопки: снаружи тап ловили бы
+                // только цифры, а ячейка визуально шире — отсюда промахи по датам.
                 Button { onDayTap?(day.date) } label: {
                     DayCell(day: day, week: week)
+                        .frame(maxWidth: .infinity)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .disabled(onDayTap == nil)
-                .frame(maxWidth: .infinity)
             }
         }
     }
@@ -405,6 +414,7 @@ struct DayArticlesSheet: View {
                     Image(systemName: "xmark")
                         .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(Theme.textMuted)
+                        .tapTarget()
                 }
             }
 
