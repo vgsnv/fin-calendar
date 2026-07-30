@@ -5,6 +5,9 @@ import FinCalendarCore
 /// и чек-лист исполнения с отметками «перечислено».
 struct LayoutSheetView: View {
     let occurrence: IncomeOccurrence
+    /// Шаблон: приход ещё не наступил — раскладка только просматривается,
+    /// подтверждение появится в день прихода.
+    var template = false
     @Environment(\.dismiss) private var dismiss
     @Environment(AppModel.self) private var model
 
@@ -12,7 +15,7 @@ struct LayoutSheetView: View {
         if let confirmed = model.layout(for: occurrence.id) {
             ChecklistView(occurrence: occurrence, layout: confirmed, dismiss: { dismiss() })
         } else {
-            DraftView(occurrence: occurrence, dismiss: { dismiss() })
+            DraftView(occurrence: occurrence, isTemplate: template, dismiss: { dismiss() })
         }
     }
 }
@@ -21,6 +24,7 @@ struct LayoutSheetView: View {
 
 private struct DraftView: View {
     let occurrence: IncomeOccurrence
+    var isTemplate = false
     let dismiss: () -> Void
     @Environment(AppModel.self) private var model
 
@@ -43,7 +47,7 @@ private struct DraftView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 header
-                factField
+                if isTemplate { plannedRow } else { factField }
                 VStack(spacing: 0) {
                     ForEach(rows) { row in
                         LayoutRow(name: row.name, note: row.note, amount: row.amount)
@@ -69,20 +73,27 @@ private struct DraftView: View {
                     }
                 }
 
-                thinNotes(rec)
+                shortfallNotes(rec)
 
-                Button {
-                    model.confirmLayout(occurrence: occurrence, factAmount: factAmount,
-                                        recommendation: rec)
-                } label: {
-                    Text("Подтвердить раскладку")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(Capsule().fill(Theme.accent))
+                if isTemplate {
+                    Text("Это шаблон: суммы пересчитаются от факта. Подтвердить раскладку можно в день прихода — \(occurrence.factDate.day) \(RU.monthsGen[occurrence.factDate.month - 1]).")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.textMuted)
+                        .padding(.top, 4)
+                } else {
+                    Button {
+                        model.confirmLayout(occurrence: occurrence, factAmount: factAmount,
+                                            recommendation: rec)
+                    } label: {
+                        Text("Подтвердить раскладку")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(Capsule().fill(Theme.accent))
+                    }
+                    .padding(.top, 4)
                 }
-                .padding(.top, 4)
             }
             .padding(20)
         }
@@ -103,9 +114,23 @@ private struct DraftView: View {
                         .foregroundStyle(Theme.textMuted)
                 }
             }
-            Text("\(model.incomeName(anchorDay: occurrence.anchorDay)) · \(occurrence.factDate.day) \(RU.monthsGen[occurrence.factDate.month - 1]) · черновик")
+            Text("\(model.incomeName(anchorDay: occurrence.anchorDay)) · \(occurrence.factDate.day) \(RU.monthsGen[occurrence.factDate.month - 1]) · \(isTemplate ? "шаблон" : "черновик")")
                 .font(.system(size: 12)).foregroundStyle(Theme.textMuted)
         }
+    }
+
+    /// Шаблон: суммы плановые, факт появится в день прихода.
+    private var plannedRow: some View {
+        HStack {
+            Text("придёт по плану").font(.system(size: 15)).foregroundStyle(Theme.textMuted)
+            Spacer()
+            Text(RU.money(occurrence.plannedAmount))
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundStyle(Theme.text)
+        }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
+            .strokeBorder(Theme.line, lineWidth: 1))
     }
 
     private var factField: some View {
@@ -151,12 +176,14 @@ private struct DraftView: View {
         return rows
     }
 
+    /// Недостача заявляется с цифрой и датой (П9); повседневные не гнутся —
+    /// решения человек принимает правкой статей (П8).
     @ViewBuilder
-    private func thinNotes(_ rec: Recommendation) -> some View {
-        let weekStarts = (0..<occurrence.sprintWeeks).map { occurrence.sprintStart.adding(days: $0 * 7) }
-        let thin = rec.weeks.filter { weekStarts.contains($0.start) && $0.isThin }
-        if !thin.isEmpty {
-            Text("тонкие недели: \(thin.map { RU.money($0.amount) }.joined(separator: ", ")) вместо \(RU.money(model.plan.namedWeek))")
+    private func shortfallNotes(_ rec: Recommendation) -> some View {
+        let sprintEnd = occurrence.sprintStart.adding(days: occurrence.sprintWeeks * 7)
+        let local = rec.shortfalls.filter { $0.date >= occurrence.sprintStart && $0.date < sprintEnd }
+        if let s = local.first {
+            Text("план не сходится · к \(s.date.day) \(RU.monthsGen[s.date.month - 1]) не хватает \(RU.money(s.amount))")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(Theme.accent)
         }
@@ -228,6 +255,7 @@ private struct ChecklistView: View {
 
                 Button {
                     model.executeAll(incomeId: layout.incomeId, keys: rows.map(\.key))
+                    dismiss()
                 } label: {
                     Text("Всё проделано")
                         .font(.system(size: 15, weight: .medium))

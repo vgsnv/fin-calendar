@@ -12,6 +12,7 @@ struct SprintDetailView: View {
 
     @State private var showArticleForm = false
     @State private var showLayout = false
+    @State private var editingArticle: Article?
 
     var body: some View {
         let confirmed = model.layout(for: occurrence.id)
@@ -25,7 +26,18 @@ struct SprintDetailView: View {
 
                 VStack(spacing: 0) {
                     ForEach(rows) { row in
-                        SprintContributionRow(name: row.name, note: row.note, amount: row.amount)
+                        // Тап по строке статьи — правка (С1–С8): системные строки
+                        // («повседневные», доп. неделя) не статьи, их не открыть.
+                        // В прошлом спринте строки не открываются — только чтение.
+                        if !isPast, let article = article(for: row.id) {
+                            Button { editingArticle = article } label: {
+                                SprintContributionRow(name: row.name, note: row.note,
+                                                      amount: row.amount, editable: true)
+                            }
+                            .buttonStyle(.plain)
+                        } else {
+                            SprintContributionRow(name: row.name, note: row.note, amount: row.amount)
+                        }
                         if row.id != rows.last?.id { Divider().overlay(Theme.line) }
                     }
                 }
@@ -49,7 +61,23 @@ struct SprintDetailView: View {
         }
         .background(Theme.bg)
         .sheet(isPresented: $showArticleForm) { ArticleFormView() }
-        .fullScreenCover(isPresented: $showLayout) { LayoutSheetView(occurrence: occurrence) }
+        .sheet(item: $editingArticle) { ArticleFormView(existing: $0) }
+        .fullScreenCover(isPresented: $showLayout) {
+            LayoutSheetView(occurrence: occurrence, template: isFuture)
+        }
+    }
+
+    /// Приход ещё не наступил — раскладка открывается шаблоном, без подтверждения.
+    private var isFuture: Bool { occurrence.factDate > model.today }
+
+    /// Спринт закончился — прошлое, только чтение: раскладки задним числом нет (С15а).
+    private var isPast: Bool {
+        occurrence.sprintStart.adding(days: occurrence.sprintWeeks * 7 - 1) < model.today
+    }
+
+    private func article(for needId: String) -> Article? {
+        let articleId = needId.split(separator: "@").first.map(String.init) ?? needId
+        return model.plan.articles.first { $0.id == articleId }
     }
 
     // MARK: Заголовок
@@ -155,13 +183,18 @@ struct SprintDetailView: View {
 
     private func pausedRow(_ article: Article) -> some View {
         HStack(spacing: 8) {
-            (Text(article.name)
-                .font(.system(size: 15))
-                .foregroundStyle(Theme.text)
-             + Text(" · \(pausedNote(article))")
-                .font(.system(size: 12))
-                .foregroundStyle(Theme.textMuted))
-                .lineLimit(2)
+            Button { editingArticle = article } label: {
+                (Text(article.name)
+                    .font(.system(size: 15))
+                    .foregroundStyle(Theme.text)
+                 + Text(" · \(pausedNote(article))")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.textMuted))
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
             Spacer()
             Button {
                 model.setPaused(articleId: article.id, paused: false)
@@ -191,18 +224,37 @@ struct SprintDetailView: View {
 
     private func actions(isConfirmed: Bool) -> some View {
         HStack(spacing: 10) {
-            Button { showArticleForm = true } label: {
-                Text("+ статья")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(Theme.text)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 12)
-                    .background(Capsule().fill(Theme.surface)
-                        .strokeBorder(Theme.line, lineWidth: 1))
+            if !isPast {
+                Button { showArticleForm = true } label: {
+                    Text("+ статья")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(Theme.text)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 12)
+                        .background(Capsule().fill(Theme.surface)
+                            .strokeBorder(Theme.line, lineWidth: 1))
+                }
             }
             if isConfirmed {
                 Button { showLayout = true } label: {
                     Text("Раскладка · исполнение")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(Theme.accent)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Capsule().strokeBorder(Theme.accent, lineWidth: 1))
+                }
+            } else if isPast {
+                // Прошёл без раскладки: восстановления задним числом нет (С15а).
+                Text("спринт прошёл без раскладки — числа не застыли")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.textMuted)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 12)
+            } else if isFuture {
+                // Приход впереди: раскладку можно посмотреть шаблоном, но не подтвердить.
+                Button { showLayout = true } label: {
+                    Text("Шаблон раскладки")
                         .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(Theme.accent)
                         .frame(maxWidth: .infinity)
@@ -230,6 +282,7 @@ private struct SprintContributionRow: View {
     let name: String
     let note: String?
     let amount: Double
+    var editable = false
 
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
@@ -243,9 +296,15 @@ private struct SprintContributionRow: View {
             Text(RU.money(amount))
                 .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(Theme.text)
+            if editable {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Theme.textFaint)
+            }
         }
         .padding(.vertical, 11)
         .padding(.horizontal, 14)
+        .contentShape(Rectangle())
     }
 }
 

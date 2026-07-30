@@ -19,7 +19,6 @@ struct TapeModel {
         let days: [Day]
         let isCurrent: Bool
         let isPast: Bool
-        let thinAmount: Double?    // порция, если неделя тонкая (П9)
         let isExtra: Bool          // дополнительная финнеделя длинного спринта (С9)
         var issueAmount: Double? = nil  // порция выдачи — только в разложенном спринте (С16)
 
@@ -36,6 +35,10 @@ struct TapeModel {
         let isConfirmed: Bool      // раскладка подтверждена — числа застыли (П12)
         let callToAction: Bool     // «Разложить»: плановая дата наступила (МП26)
         let blindNote: Bool        // спринт стартовал неразложенным — план слеп (С12)
+        var isMissed: Bool = false // прошёл без раскладки (С15а) — прошлое, только чтение
+        // Раньше даты входа: спринт на сетке есть, в нём ничего — ни сумм, ни маркеров.
+        var isPrehistory: Bool = false
+        var shortfall: Shortfall? = nil // план не сходится в этом спринте (П9)
         let occurrence: IncomeOccurrence
 
         var id: Int { start.dayNumber }
@@ -45,22 +48,31 @@ struct TapeModel {
     let namedWeek: Double
     let sprints: [SprintVM]
 
-    init(model: AppModel) {
-        let plan = model.plan
-        let horizon = model.horizon
-        let today = model.today
+    /// `pastMonths` — глубина прошлого на сетке; будущее задаёт горизонт пересчёта.
+    init(plan: Plan, horizon: HorizonRecommendation, today: CivilDate, pastMonths: Int) {
         self.today = today
         self.namedWeek = plan.namedWeek
 
         let rec = horizon.recommendation
-        let weekByStart = Dictionary(uniqueKeysWithValues: rec.weeks.map { ($0.start, $0) })
+
+        /// Имя прихода по опорной дате — как AppModel.incomeName, но от снимка плана.
+        func incomeName(anchorDay: Int) -> String {
+            plan.incomes.first { $0.anchor.day == anchorDay }?.anchor.name
+                ?? "приход \(anchorDay)-го"
+        }
+
+        // Конец ленты — дальний край горизонта: разметка обязана доходить до него,
+        // пустот и дат-заглушек на ленте не существует (МП23).
+        let tapeEnd = horizon.occurrences
+            .map { $0.sprintStart.adding(days: $0.sprintWeeks * 7) }
+            .max() ?? today
 
         var paymentDates = Set<CivilDate>()
         for a in plan.articles {
             if case .payment(_, let date, let monthly, _) = a.kind {
                 if let day = monthly {
                     var d = CivilDate(today.year, today.month, day)
-                    for _ in 0..<4 {
+                    while d <= tapeEnd {
                         paymentDates.insert(d)
                         let (ny, nm) = d.month == 12 ? (d.year + 1, 1) : (d.year, d.month + 1)
                         d = CivilDate(ny, nm, day)
@@ -81,11 +93,11 @@ struct TapeModel {
                            paymentMarker: paymentDates.contains(d))
             }
         }
-        func makeWeek(start: CivilDate, thin: Double?, isExtra: Bool) -> Week {
+        func makeWeek(start: CivilDate, isExtra: Bool) -> Week {
             Week(start: start, days: makeDays(start),
                  isCurrent: start <= today && today <= start.adding(days: 6),
                  isPast: start.adding(days: 6) < today,
-                 thinAmount: thin, isExtra: isExtra)
+                 isExtra: isExtra)
         }
 
         var sprints: [SprintVM] = []
@@ -96,11 +108,11 @@ struct TapeModel {
                   let factDate = layout.factDate else { continue }
             let weeks = (0..<weeksCount).map { w -> Week in
                 let ws = start.adding(days: w * 7)
-                let amount = layout.weekAmounts.first { $0.start == ws }?.amount
-                let thin = (amount != nil && amount! < plan.namedWeek - 0.5) ? amount : nil
-                var week = makeWeek(start: ws, thin: thin,
-                                    isExtra: layout.isLong && w == weeksCount - 1)
-                week.issueAmount = amount
+                let isExtra = layout.isLong && w == weeksCount - 1
+                var week = makeWeek(start: ws, isExtra: isExtra)
+                // Дополнительная неделя оплачена из плана (С9): выдача — полная порция.
+                week.issueAmount = layout.weekAmounts.first { $0.start == ws }?.amount
+                    ?? (isExtra ? plan.namedWeek : nil)
                 return week
             }
             let contributed = layout.contributions.reduce(0) { $0 + $1.amount }
@@ -126,18 +138,16 @@ struct TapeModel {
 
         for occ in sorted where seen.insert(occ.sprintStart.dayNumber).inserted {
             let weeks = (0..<occ.sprintWeeks).map { w -> Week in
-                let ws = occ.sprintStart.adding(days: w * 7)
-                let amount = weekByStart[ws]
-                return makeWeek(start: ws,
-                                thin: (amount?.isThin == true) ? amount?.amount : nil,
-                                isExtra: occ.isLongSprint && w == occ.sprintWeeks - 1)
+                makeWeek(start: occ.sprintStart.adding(days: w * 7),
+                         isExtra: occ.isLongSprint && w == occ.sprintWeeks - 1)
             }
             let contributed = rec.contributions
                 .filter { $0.incomeId == occ.id }
                 .reduce(0) { $0 + $1.amount }
+            let sprintEnd = occ.sprintStart.adding(days: occ.sprintWeeks * 7)
             sprints.append(SprintVM(
                 start: occ.sprintStart,
-                incomeName: model.incomeName(anchorDay: occ.anchorDay),
+                incomeName: incomeName(anchorDay: occ.anchorDay),
                 incomeAmount: occ.plannedAmount,
                 occupancy: occ.plannedAmount > 0 ? min(1, contributed / occ.plannedAmount) : 0,
                 weeks: weeks,
@@ -145,7 +155,47 @@ struct TapeModel {
                 isConfirmed: false,
                 callToAction: occ.id == firstDue?.id,
                 blindNote: occ.id == firstDue?.id && occ.sprintStart <= today,
+                shortfall: rec.shortfalls.first { $0.date >= occ.sprintStart && $0.date < sprintEnd },
                 occurrence: occ))
+        }
+
+        // Прошлое ленты: сетка уходит вглубь на ту же глубину, что и будущее (МП23) —
+        // мотать можно куда угодно. Спринты после даты входа, прошедшие без раскладки,
+        // остаются видимыми (С15а): менять там нечего, восстановления задним числом нет.
+        // Раньше даты входа плана не существовало: спринт на сетке есть, в нём ничего.
+        if !plan.incomes.isEmpty {
+            let calendar = OwnCalendar(weekBoundary: plan.weekBoundary,
+                                       anchors: plan.incomes.map(\.anchor),
+                                       production: plan.production)
+            let entry = plan.entryDate
+            var fromY = today.year, fromMo = today.month - pastMonths - 1
+            while fromMo < 1 { fromMo += 12; fromY -= 1 }
+            let toM = today.month == 12 ? (today.year + 1, 1) : (today.year, today.month + 1)
+            let amountByDay = Dictionary(uniqueKeysWithValues:
+                plan.incomes.map { ($0.anchor.day, $0.plannedAmount) })
+            let grid = calendar.sprints(fromYear: fromY, fromMonth: fromMo,
+                                        toYear: toM.0, toMonth: toM.1)
+            for s in grid where s.end < today {
+                guard seen.insert(s.start.dayNumber).inserted,
+                      let day = s.anchorDays.first, let fact = s.factDates.first else { continue }
+                let weeks = (0..<s.weeks).map { w in
+                    makeWeek(start: s.start.adding(days: w * 7),
+                             isExtra: s.isLong && w == s.weeks - 1)
+                }
+                let occ = IncomeOccurrence(id: "\(day)@\(fact)", anchorDay: day, factDate: fact,
+                                           sprintStart: s.start, sprintWeeks: s.weeks,
+                                           plannedAmount: amountByDay[day] ?? 0,
+                                           isLongSprint: s.isLong)
+                let prehistory = s.end < entry
+                sprints.append(SprintVM(start: s.start,
+                                        incomeName: prehistory ? "" : incomeName(anchorDay: day),
+                                        incomeAmount: prehistory ? 0 : (amountByDay[day] ?? 0),
+                                        occupancy: 0, weeks: weeks, isLong: s.isLong,
+                                        isConfirmed: false, callToAction: false,
+                                        blindNote: false, isMissed: !prehistory,
+                                        isPrehistory: prehistory,
+                                        occurrence: occ))
+            }
         }
         self.sprints = sprints.sorted { $0.start < $1.start }
     }

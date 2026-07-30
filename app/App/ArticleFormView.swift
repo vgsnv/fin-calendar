@@ -23,7 +23,8 @@ struct ArticleFormView: View {
     @State private var speedText: String
     @State private var isPaused: Bool
 
-    init(existing: Article? = nil, onSave: ((Article) -> Void)? = nil) {
+    init(existing: Article? = nil, prefillDate: CivilDate? = nil,
+         onSave: ((Article) -> Void)? = nil) {
         self.existing = existing
         self.onSave = onSave
 
@@ -31,6 +32,12 @@ struct ArticleFormView: View {
         var initialHasDate = false, initialMonthly = false, initialPrepared = true
         var initialDay = 1
         var initialDue = Date()
+
+        // Новая статья с ленты: дата уже выбрана тапом по дню.
+        if existing == nil, let prefillDate {
+            initialHasDate = true
+            initialDue = Self.date(from: prefillDate)
+        }
 
         if let a = existing {
             initialName = a.name
@@ -131,6 +138,7 @@ struct ArticleFormView: View {
 
     private var subtitle: String {
         if existing == nil { return "заполните, что известно — вид определится сам" }
+        if onSave != nil { return "правка черновика — план создастся в конце входа" }
         return isPaused ? "на паузе · правка действует от сегодня"
                         : "правка действует от сегодня"
     }
@@ -172,11 +180,11 @@ struct ArticleFormView: View {
             if monthly {
                 Divider().overlay(Theme.line)
                 HStack {
-                    Text("каждый месяц, \(monthlyDay)-го числа")
+                    Text("число месяца")
                         .font(.system(size: 15))
                         .foregroundStyle(Theme.text)
                     Spacer()
-                    StepperControl(value: $monthlyDay, range: 1...28)
+                    DayGridButton(day: $monthlyDay, suffix: "-го")
                 }
                 .padding(.vertical, 8)
                 .padding(.horizontal, 14)
@@ -216,9 +224,11 @@ struct ArticleFormView: View {
     }
 
     /// Правка: пауза для фондов и замыслов (П8) и закрытие решением человека (С4а).
+    /// Во входе (onSave) плана ещё нет — эти действия не показываются,
+    /// черновик убирается свайпом в списке.
     @ViewBuilder
     private var editActions: some View {
-        if let existing {
+        if let existing, onSave == nil {
             card {
                 if canPause {
                     Button {
@@ -267,12 +277,8 @@ struct ArticleFormView: View {
             Text("план помещается · неделя останется \(RU.money(model.plan.namedWeek))")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(Theme.textMuted)
-        } else if let thin = rec.thinWeeks.first {
-            Text("тонкие недели: \(RU.money(thin.amount)) вместо \(RU.money(model.plan.namedWeek))")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(Theme.accent)
-        } else if !rec.unmetNeeds.isEmpty {
-            Text("не помещается: посмотрите раскладку")
+        } else if let s = rec.shortfalls.first {
+            Text("не помещается: к \(s.date.day) \(RU.monthsGen[s.date.month - 1]) не хватает \(RU.money(s.amount))")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(Theme.accent)
         }
@@ -333,7 +339,8 @@ struct ArticleFormView: View {
             if let i = temp.articles.firstIndex(where: { $0.id == article.id }) {
                 temp.articles[i] = article
             }
-            return PlanEngine.recompute(temp, today: model.today, horizonMonths: 6)
+            return PlanEngine.recompute(temp, today: model.today,
+                                        horizonMonths: AppModel.horizonMonths)
         }
         return model.preview(adding: article)
     }
