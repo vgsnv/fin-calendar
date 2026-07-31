@@ -44,7 +44,7 @@ final class AppModel {
             loaded = Self.renamedChecklistKeys(saved)
             self.needsOnboarding = false
         } else {
-            loaded = Plan(namedWeek: 0, weekBoundary: 6, incomes: [], entryDate: today)
+            loaded = Plan(weekBoundary: 6, incomes: [], entryDate: today)
             self.needsOnboarding = true
         }
         self.plan = loaded
@@ -95,37 +95,43 @@ final class AppModel {
 
     // MARK: Вход (МП18–МП21)
 
+    /// Шаг 3 входа создаёт первую еженедельную статью (С9, МП20):
+    /// порция — данные плана, не конфигурация.
     func completeOnboarding(incomes: [PlannedIncome], articles: [Article],
-                            namedWeek: Double, weekBoundary: Int) {
-        plan = Plan(namedWeek: namedWeek, weekBoundary: weekBoundary, incomes: incomes,
-                    entryDate: today, articles: articles)
+                            weekPortion: Double, weekBoundary: Int) {
+        let week = Article(id: UUID().uuidString, name: "Неделя",
+                           kind: .weekly(portion: weekPortion))
+        plan = Plan(weekBoundary: weekBoundary, incomes: incomes,
+                    entryDate: today, articles: articles + [week])
         needsOnboarding = false
         mutate { _ in }
     }
 
-    /// Проверка «помещается» для называемой недели (МП20): временный план, не сохраняется.
-    func fits(namedWeek: Double, incomes: [PlannedIncome]? = nil,
+    /// Проверка «помещается» для порции входа (МП20): временный план с ещё одной
+    /// еженедельной статьёй этой порции, не сохраняется.
+    func fits(weekPortion: Double, incomes: [PlannedIncome]? = nil,
               articles: [Article]? = nil, weekBoundary: Int? = nil) -> Bool {
         var temp = plan
-        temp.namedWeek = namedWeek
         if let incomes { temp.incomes = incomes }
         if let articles { temp.articles = articles }
         if let weekBoundary { temp.weekBoundary = weekBoundary }
+        temp.articles.append(Article(id: "неделя-входа", name: "Неделя",
+                                     kind: .weekly(portion: weekPortion)))
         if temp.incomes.isEmpty { return false }
         let rec = PlanEngine.recompute(temp, today: today,
                                        horizonMonths: Self.horizonMonths).recommendation
         return rec.fits
     }
 
-    /// «Посчитать за меня» (МП20): максимум недели, при котором план помещается.
+    /// «Посчитать за меня» (МП20): максимум порции, при котором план помещается.
     func maxFittingWeek(incomes: [PlannedIncome]? = nil, articles: [Article]? = nil,
                         weekBoundary: Int? = nil) -> Double {
         var lo = 0.0, hi = 1_000_000.0
-        guard fits(namedWeek: lo, incomes: incomes, articles: articles, weekBoundary: weekBoundary)
+        guard fits(weekPortion: lo, incomes: incomes, articles: articles, weekBoundary: weekBoundary)
         else { return 0 }
         while hi - lo > 1 {
             let mid = (lo + hi) / 2
-            if fits(namedWeek: mid, incomes: incomes, articles: articles, weekBoundary: weekBoundary) {
+            if fits(weekPortion: mid, incomes: incomes, articles: articles, weekBoundary: weekBoundary) {
                 lo = mid
             } else {
                 hi = mid
@@ -181,11 +187,6 @@ final class AppModel {
 
     // MARK: Настройки (МП35–МП36)
 
-    /// Смена недели — не перезапуск: действует со следующей раскладки (МП36).
-    func setNamedWeek(_ value: Double) {
-        mutate { $0.namedWeek = value }
-    }
-
     func setIncomes(_ incomes: [PlannedIncome]) {
         mutate { $0.incomes = incomes }
     }
@@ -214,7 +215,7 @@ final class AppModel {
     /// «Начать заново» (settings.md): полное стирание — не перезапуск К7, а стирание.
     func eraseEverything() {
         try? FileManager.default.removeItem(at: Self.storeURL)
-        plan = Plan(namedWeek: 0, weekBoundary: 6, incomes: [], entryDate: today)
+        plan = Plan(weekBoundary: 6, incomes: [], entryDate: today)
         needsOnboarding = true
         recompute()
     }
@@ -227,23 +228,14 @@ final class AppModel {
                              factOverrides: [occurrenceId: factAmount])
     }
 
-    /// Подтверждение раскладки: числа застывают, граница пересчёта сдвигается (П12, МП30).
+    /// Подтверждение раскладки: числа застывают, граница пересчёта сдвигается
+    /// (П12, МП30); у длинного спринта застывает и порция лишней недели (МП36).
     func confirmLayout(occurrence: IncomeOccurrence, factAmount: Double,
                        recommendation: Recommendation) {
-        let weekStarts = (0..<occurrence.sprintWeeks).map { occurrence.sprintStart.adding(days: $0 * 7) }
-        let weeks = recommendation.weeks
-            .filter { weekStarts.contains($0.start) }
-            .map { WeekAllotment(start: $0.start, amount: $0.amount) }
-        let contribs = recommendation.contributions.filter { $0.incomeId == occurrence.id }
-        let layout = ConfirmedLayout(incomeId: occurrence.id,
-                                     incomeName: incomeName(anchorDay: occurrence.anchorDay),
-                                     factDate: occurrence.factDate,
-                                     factAmount: factAmount,
-                                     sprintStart: occurrence.sprintStart,
-                                     sprintWeeks: occurrence.sprintWeeks,
-                                     isLong: occurrence.isLongSprint,
-                                     weekAmounts: weeks,
-                                     contributions: contribs)
+        let layout = ConfirmedLayout.frozen(occurrence: occurrence, factAmount: factAmount,
+                                            incomeName: incomeName(anchorDay: occurrence.anchorDay),
+                                            recommendation: recommendation,
+                                            weeklySum: plan.weeklySum)
         mutate { $0.confirmed.append(layout) }
     }
 
@@ -295,6 +287,8 @@ final class AppModel {
         return plan.articles.first { $0.id == articleId }?.name ?? articleId
     }
 
+    /// Порядок строк раскладки (МП28): платежи → замыслы и фонды →
+    /// дополнительная неделя → еженедельные.
     func needOrder(for key: String) -> Int {
         let articleId = Plan.articleId(of: key)
         if articleId == "extra" { return 2 }
@@ -302,6 +296,22 @@ final class AppModel {
         switch a.kind {
         case .payment: return 0
         case .intent, .fund: return 1
+        case .weekly: return 3
         }
+    }
+
+    func isWeeklyArticle(key: String) -> Bool {
+        plan.articles.first { $0.id == Plan.articleId(of: key) }?.isWeekly ?? false
+    }
+
+    /// Подпись строки еженедельной статьи: «2 × 12 000» — сколько порций во взносе
+    /// прихода. Взнос не делится на порции нацело (докорм чужой недели при
+    /// недостаче) — подписи нет, цифра говорит сама.
+    func portionNote(articleId: String, amount: Double) -> String? {
+        guard let a = plan.articles.first(where: { $0.id == articleId }),
+              case .weekly(let portion) = a.kind, portion > 0.5 else { return nil }
+        let count = (amount / portion).rounded()
+        guard count >= 1, abs(amount - count * portion) < 0.5 else { return nil }
+        return "\(Int(count)) × \(RU.money(portion))"
     }
 }

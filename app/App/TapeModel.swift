@@ -45,13 +45,11 @@ struct TapeModel {
     }
 
     let today: CivilDate
-    let namedWeek: Double
     let sprints: [SprintVM]
 
     /// `pastMonths` — глубина прошлого на сетке; будущее задаёт горизонт пересчёта.
     init(plan: Plan, horizon: HorizonRecommendation, today: CivilDate, pastMonths: Int) {
         self.today = today
-        self.namedWeek = plan.namedWeek
 
         let rec = horizon.recommendation
 
@@ -110,9 +108,11 @@ struct TapeModel {
                 let ws = start.adding(days: w * 7)
                 let isExtra = layout.isLong && w == weeksCount - 1
                 var week = makeWeek(start: ws, isExtra: isExtra)
-                // Дополнительная неделя оплачена из плана (С9): выдача — полная порция.
+                // Дополнительная неделя оплачена из плана (С9): выдача — полные порции.
+                // Раскладки, застывшие до еженедельных статей, лишнюю неделю не
+                // замораживали — фолбэк на текущую сумму порций.
                 week.issueAmount = layout.weekAmounts.first { $0.start == ws }?.amount
-                    ?? (isExtra ? plan.namedWeek : nil)
+                    ?? (isExtra ? plan.weeklySum : nil)
                 return week
             }
             let contributed = layout.contributions.reduce(0) { $0 + $1.amount }

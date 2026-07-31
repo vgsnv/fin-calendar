@@ -12,9 +12,20 @@ public enum ArticleKind: Equatable, Sendable {
     case intent(target: Double, monthlySpeed: Double)
     /// Фонд (С7–С8): только скорость в месяц.
     case fund(monthlySpeed: Double)
+    /// Еженедельные деньги (С9): полная порция на каждую финнеделю, без конца.
+    /// Не гнутся и паузы не имеют (П9); статей вида может быть несколько.
+    case weekly(portion: Double)
 }
 
 extension ArticleKind: Codable {}
+
+extension Article {
+    /// Еженедельная статья (С9).
+    public var isWeekly: Bool {
+        if case .weekly = kind { return true }
+        return false
+    }
+}
 
 public struct Article: Equatable, Codable, Sendable, Identifiable {
     public let id: String
@@ -94,10 +105,38 @@ public struct ConfirmedLayout: Codable, Sendable {
                         factAmount: keptContributions.reduce(0) { $0 + $1.amount },
                         weekAmounts: [], contributions: keptContributions)
     }
+
+    /// Подтверждение раскладки (П12, МП30): порции финнедель спринта и взносы
+    /// прихода застывают. У длинного спринта замораживается и лишняя финнеделя:
+    /// она оплачена сбором (С9), её порция — цель сбора на момент подтверждения;
+    /// правка еженедельных дальше действует на будущее, текущий спринт доживает
+    /// на прежних порциях (МП36).
+    public static func frozen(occurrence: IncomeOccurrence, factAmount: Double,
+                              incomeName: String, recommendation: Recommendation,
+                              weeklySum: Double) -> ConfirmedLayout {
+        let starts = (0..<occurrence.sprintWeeks).map { occurrence.sprintStart.adding(days: $0 * 7) }
+        var weeks = recommendation.weeks
+            .filter { starts.contains($0.start) }
+            .map { WeekAllotment(start: $0.start, amount: $0.amount) }
+        if occurrence.isLongSprint {
+            let extraStart = occurrence.sprintStart.adding(days: (occurrence.sprintWeeks - 1) * 7)
+            weeks.append(WeekAllotment(start: extraStart, amount: weeklySum))
+        }
+        return ConfirmedLayout(incomeId: occurrence.id,
+                               incomeName: incomeName,
+                               factDate: occurrence.factDate,
+                               factAmount: factAmount,
+                               sprintStart: occurrence.sprintStart,
+                               sprintWeeks: occurrence.sprintWeeks,
+                               isLong: occurrence.isLongSprint,
+                               weekAmounts: weeks,
+                               contributions: recommendation.contributions.filter {
+                                   $0.incomeId == occurrence.id
+                               })
+    }
 }
 
 public struct Plan: Codable, Sendable {
-    public var namedWeek: Double
     public var weekBoundary: Int
     public var incomes: [PlannedIncome]
     public var production: ProductionCalendar
@@ -110,12 +149,11 @@ public struct Plan: Codable, Sendable {
     public var notifyLayout: Bool
     public var notifyIssue: Bool
 
-    public init(namedWeek: Double, weekBoundary: Int, incomes: [PlannedIncome],
+    public init(weekBoundary: Int, incomes: [PlannedIncome],
                 production: ProductionCalendar = .none, entryDate: CivilDate,
                 articles: [Article] = [], confirmed: [ConfirmedLayout] = [],
                 issuedWeeks: Set<CivilDate> = [], notifyLayout: Bool = true,
                 notifyIssue: Bool = true) {
-        self.namedWeek = namedWeek
         self.weekBoundary = weekBoundary
         self.incomes = incomes
         self.production = production
@@ -127,10 +165,15 @@ public struct Plan: Codable, Sendable {
         self.notifyIssue = notifyIssue
     }
 
+    private enum CodingKeys: String, CodingKey {
+        case namedWeek   // наследие: неделя-константа до еженедельных статей (С9)
+        case weekBoundary, incomes, production, entryDate, articles, confirmed
+        case issuedWeeks, notifyLayout, notifyIssue
+    }
+
     // Новые поля читаются с умолчаниями — старые файлы хранилища остаются валидными.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        namedWeek = try c.decode(Double.self, forKey: .namedWeek)
         weekBoundary = try c.decode(Int.self, forKey: .weekBoundary)
         incomes = try c.decode([PlannedIncome].self, forKey: .incomes)
         production = try c.decode(ProductionCalendar.self, forKey: .production)
@@ -140,6 +183,34 @@ public struct Plan: Codable, Sendable {
         issuedWeeks = try c.decodeIfPresent(Set<CivilDate>.self, forKey: .issuedWeeks) ?? []
         notifyLayout = try c.decodeIfPresent(Bool.self, forKey: .notifyLayout) ?? true
         notifyIssue = try c.decodeIfPresent(Bool.self, forKey: .notifyIssue) ?? true
+        // Неделя-константа старого хранилища становится первой еженедельной
+        // статьёй (С9): порция — данные плана, не конфигурация.
+        let legacyWeek = try c.decodeIfPresent(Double.self, forKey: .namedWeek) ?? 0
+        if legacyWeek > 1e-9, !articles.contains(where: \.isWeekly) {
+            articles.append(Article(id: "неделя", name: "Неделя",
+                                    kind: .weekly(portion: legacyWeek)))
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(weekBoundary, forKey: .weekBoundary)
+        try c.encode(incomes, forKey: .incomes)
+        try c.encode(production, forKey: .production)
+        try c.encode(entryDate, forKey: .entryDate)
+        try c.encode(articles, forKey: .articles)
+        try c.encode(confirmed, forKey: .confirmed)
+        try c.encode(issuedWeeks, forKey: .issuedWeeks)
+        try c.encode(notifyLayout, forKey: .notifyLayout)
+        try c.encode(notifyIssue, forKey: .notifyIssue)
+    }
+
+    /// Деньги одной финнедели — сумма порций активных еженедельных статей (С9, П1).
+    public var weeklySum: Double {
+        articles.reduce(0) {
+            if case .weekly(let portion) = $1.kind, !$1.paused { return $0 + portion }
+            return $0
+        }
     }
 
     /// Собрано по статье из подтверждённых раскладок (взносы не возвращаются, П12, С4а).
@@ -260,16 +331,24 @@ public enum PlanEngine {
                                                    nominalDate: nominalById[occ.id]))
         }
 
-        // Дополнительная финнеделя длинного спринта в балансировку не входит:
-        // её порцию собирает системная статья (С9), выдача — из плана.
-        var weekStarts: [CivilDate] = []
+        // Порции еженедельных статей — потребности финнедель своих спринтов (С9,
+        // С12): такие же взносы, а не остаток. Лишняя финнеделя длинного спринта
+        // порций здесь не имеет: их собирает заранее системная статья (С9, С10).
+        var needs: [Need] = []
+        let weeklies = plan.articles.filter { !$0.paused && $0.isWeekly }
         var seenSprints = Set<CivilDate>()
         for occ in occurrences where seenSprints.insert(occ.sprintStart).inserted {
             let paidWeeks = occ.sprintWeeks - (occ.isLongSprint ? 1 : 0)
-            for w in 0..<paidWeeks { weekStarts.append(occ.sprintStart.adding(days: w * 7)) }
+            for w in 0..<paidWeeks {
+                let weekStart = occ.sprintStart.adding(days: w * 7)
+                for a in weeklies {
+                    guard case .weekly(let portion) = a.kind, portion > 1e-9 else { continue }
+                    needs.append(Need(id: "\(a.id)@\(weekStart)", name: a.name,
+                                      kind: .weeklyPortion, due: weekStart, amount: portion))
+                }
+            }
         }
 
-        var needs: [Need] = []
         var intentFinish: [String: CivilDate] = [:]
         let perMonth = Double(plan.incomes.count)
 
@@ -314,6 +393,8 @@ public enum PlanEngine {
                     needs.append(Need(id: "\(a.id)@\(occ.factDate)", name: a.name,
                                       kind: .fundSpeed, due: occ.factDate, amount: speed / perMonth))
                 }
+            case .weekly:
+                break // порции — потребности финнедель, собраны выше (С9)
             }
         }
 
@@ -330,7 +411,9 @@ public enum PlanEngine {
             let id = "extra@\(occ.sprintStart)"
             let collected = plan.confirmed.flatMap(\.contributions)
                 .filter { $0.needId == id }.reduce(0) { $0 + $1.amount }
-            let remaining = plan.namedWeek - collected
+            // Цель сбора — полные порции всех еженедельных статей на лишнюю
+            // финнеделю (С9, С10); правка порций в окне меняет остаток (П11).
+            let remaining = plan.weeklySum - collected
             guard remaining > 1e-9 else { continue }
             let extraStart = occ.sprintStart.adding(days: (occ.sprintWeeks - 1) * 7)
             let windowStart = longStarts.last { $0 < occ.sprintStart }
@@ -354,8 +437,7 @@ public enum PlanEngine {
             }
         }
 
-        let balancer = Balancer(namedWeek: plan.namedWeek)
-        var rec = balancer.recommend(incomes: balancingIncomes, weekStarts: weekStarts, needs: needs)
+        var rec = Balancer().recommend(incomes: balancingIncomes, needs: needs)
         rec.contributions.append(contentsOf: extraContribs)
 
         return HorizonRecommendation(recommendation: rec, occurrences: occurrences,

@@ -119,7 +119,7 @@ struct OnboardingView: View {
             return false
         default:
             let week = parsedWeek
-            return !(week > 0 && model.fits(namedWeek: week, incomes: builtIncomes(),
+            return !(week > 0 && model.fits(weekPortion: week, incomes: builtIncomes(),
                                             articles: articles, weekBoundary: weekBoundary))
         }
     }
@@ -267,7 +267,7 @@ struct OnboardingView: View {
         .tapRow()
     }
 
-    /// Строка по виду статьи (articles.md): платёж · замысел · фонд.
+    /// Строка по виду статьи (articles.md): платёж · замысел · фонд · еженедельные.
     private func articleNote(_ article: Article) -> String {
         switch article.kind {
         case .payment(let amount, let date, let monthlyDay, _):
@@ -279,6 +279,8 @@ struct OnboardingView: View {
             return "\(RU.money(target)) · по \(RU.money(monthlySpeed)) в месяц"
         case .fund(let monthlySpeed):
             return "\(RU.money(monthlySpeed)) в месяц"
+        case .weekly(let portion):
+            return "\(RU.money(portion)) в неделю"
         }
     }
 
@@ -286,7 +288,7 @@ struct OnboardingView: View {
 
     private var step3: some View {
         let week = parsedWeek
-        let fits = week > 0 && model.fits(namedWeek: week, incomes: builtIncomes(),
+        let fits = week > 0 && model.fits(weekPortion: week, incomes: builtIncomes(),
                                           articles: articles, weekBoundary: weekBoundary)
         return VStack(alignment: .leading, spacing: 12) {
             titleBlock("Сколько стоит неделя вашей жизни?")
@@ -383,7 +385,7 @@ struct OnboardingView: View {
             }
             Button {
                 model.completeOnboarding(incomes: builtIncomes(), articles: articles,
-                                         namedWeek: parsedWeek, weekBoundary: weekBoundary)
+                                         weekPortion: parsedWeek, weekBoundary: weekBoundary)
             } label: {
                 Text("Открыть план")
                     .font(.system(size: 15, weight: .medium))

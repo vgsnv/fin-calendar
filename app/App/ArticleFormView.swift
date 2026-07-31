@@ -20,6 +20,9 @@ struct ArticleFormView: View {
     @State private var monthly: Bool
     @State private var monthlyDay: Int
     @State private var prepared: Bool
+    /// Единица скорости (МП15): «в месяц» копится (фонд, замысел),
+    /// «в неделю» выдаётся каждую неделю (еженедельные, С9).
+    @State private var weeklySpeed: Bool
     @State private var speedText: String
     @State private var isPaused: Bool
 
@@ -33,6 +36,7 @@ struct ArticleFormView: View {
 
         var initialName = "", initialAmount = "", initialSpeed = ""
         var initialHasDate = false, initialMonthly = false, initialPrepared = true
+        var initialWeekly = false
         var initialDay = 1
         var initialDue = Date()
 
@@ -57,6 +61,9 @@ struct ArticleFormView: View {
                 initialSpeed = RU.money(speed)
             case .fund(let speed):
                 initialSpeed = RU.money(speed)
+            case .weekly(let portion):
+                initialSpeed = RU.money(portion)
+                initialWeekly = true
             }
         }
 
@@ -68,6 +75,7 @@ struct ArticleFormView: View {
         _monthly = State(initialValue: initialMonthly)
         _monthlyDay = State(initialValue: initialDay)
         _prepared = State(initialValue: initialPrepared)
+        _weeklySpeed = State(initialValue: initialWeekly)
         _speedText = State(initialValue: initialSpeed)
         _isPaused = State(initialValue: existing?.paused ?? false)
     }
@@ -100,7 +108,17 @@ struct ArticleFormView: View {
                 }
 
                 if !hasDate {
-                    card { numberRow("скорость в месяц", text: $speedText, field: .speed) }
+                    card {
+                        numberRow(weeklySpeed ? "порция в неделю" : "скорость в месяц",
+                                  text: $speedText, field: .speed)
+                        Divider().overlay(Theme.line)
+                        Picker("единица скорости", selection: $weeklySpeed) {
+                            Text("в месяц").tag(false)
+                            Text("в неделю").tag(true)
+                        }
+                        .pickerStyle(.segmented)
+                        .padding(10)
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -116,7 +134,7 @@ struct ArticleFormView: View {
                             .foregroundStyle(Theme.textMuted)
                     }
                     if let preview {
-                        consequenceLine(preview.recommendation)
+                        consequenceLine(preview.recommendation, draft: draft)
                     }
                 }
                 .padding(.horizontal, 4)
@@ -131,6 +149,7 @@ struct ArticleFormView: View {
         .animation(.easeInOut(duration: 0.15), value: monthly)
         .animation(.easeInOut(duration: 0.15), value: isPayment)
         .animation(.easeInOut(duration: 0.15), value: parsedSpeed != nil)
+        .animation(.easeInOut(duration: 0.15), value: weeklySpeed)
         .onChange(of: monthly) { _, on in
             if on { monthlyDay = min(Self.civil(from: dueDate).day, 28) }
         }
@@ -278,7 +297,12 @@ struct ArticleFormView: View {
     // MARK: Живая подпись вида и последствие (МП11)
 
     private func kindCaption(draft: Article?, preview: HorizonRecommendation?) -> String {
-        guard let draft else { return "Заполните сумму, дату или скорость" }
+        guard let draft else {
+            if weeklySpeed, parsedAmount != nil {
+                return "Еженедельная живёт без суммы-цели: уберите сумму или выберите «в месяц»"
+            }
+            return "Заполните сумму, дату или скорость"
+        }
         switch draft.kind {
         case .payment(_, let date, let day, _):
             if let day { return "Платёж: каждый месяц, к \(day)-му числу" }
@@ -290,13 +314,15 @@ struct ArticleFormView: View {
             return "Замысел: \(RU.money(target)), по \(RU.money(speed)) в месяц"
         case .fund(let speed):
             return "Фонд: \(RU.money(speed)) в месяц, без конца"
+        case .weekly(let portion):
+            return "Еженедельные: полная порция \(RU.money(portion)) каждую неделю, без конца"
         }
     }
 
     @ViewBuilder
-    private func consequenceLine(_ rec: Recommendation) -> some View {
+    private func consequenceLine(_ rec: Recommendation, draft: Article?) -> some View {
         if rec.fits {
-            Text("план помещается · неделя останется \(RU.money(model.plan.namedWeek))")
+            Text("план помещается · неделя останется \(RU.money(weeklySum(with: draft)))")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(Theme.textMuted)
         } else if let s = rec.shortfalls.first {
@@ -304,6 +330,19 @@ struct ArticleFormView: View {
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(Theme.accent)
         }
+    }
+
+    /// Сумма порций с учётом черновика: правка еженедельной видна в подписи сразу.
+    private func weeklySum(with draft: Article?) -> Double {
+        var temp = model.plan
+        if let draft {
+            if let i = temp.articles.firstIndex(where: { $0.id == draft.id }) {
+                temp.articles[i] = draft
+            } else {
+                temp.articles.append(draft)
+            }
+        }
+        return temp.weeklySum
     }
 
     // MARK: Черновик статьи
@@ -319,19 +358,23 @@ struct ArticleFormView: View {
         return false
     }
 
-    /// Платёж не ставится на паузу — его гнут только сдвигом срока (П8).
+    /// Платёж не ставится на паузу — его гнут только сдвигом срока (П8);
+    /// еженедельную не гнут вовсе: ни паузы, ни сдвига (П9).
     private var canPause: Bool {
         guard let existing else { return false }
-        if case .payment = existing.kind { return false }
-        return true
+        switch existing.kind {
+        case .payment, .weekly: return false
+        case .intent, .fund: return true
+        }
     }
 
     private var parsedAmount: Double? { Self.parse(amountText) }
     private var parsedSpeed: Double? { Self.parse(speedText) }
 
-    /// Вид следует из заполненного (МП15): сумма и дата — платёж;
-    /// сумма и скорость без даты — замысел; только скорость — фонд.
-    /// Ежемесячный платёж всегда с подготовкой: движок иначе его не считает.
+    /// Вид следует из заполненного (МП15): сумма и дата — платёж; сумма и скорость
+    /// без даты — замысел; только скорость в месяц — фонд; только порция в неделю —
+    /// еженедельные (С9). Ежемесячный платёж всегда с подготовкой: движок иначе
+    /// его не считает.
     private var draftKind: ArticleKind? {
         let amount = parsedAmount
         let speed = parsedSpeed
@@ -340,6 +383,11 @@ struct ArticleFormView: View {
                             date: Self.civil(from: dueDate),
                             monthlyDay: monthly ? monthlyDay : nil,
                             prepared: monthly ? true : prepared)
+        }
+        if weeklySpeed {
+            // Еженедельная живёт без даты и суммы-цели: недельный ритм — весь вид (С9).
+            guard amount == nil, !hasDate, let speed else { return nil }
+            return .weekly(portion: speed)
         }
         if let amount, let speed { return .intent(target: amount, monthlySpeed: speed) }
         if amount == nil, !hasDate, let speed { return .fund(monthlySpeed: speed) }

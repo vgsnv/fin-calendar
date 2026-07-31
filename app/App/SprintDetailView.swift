@@ -130,13 +130,11 @@ struct SprintDetailView: View {
     }
 
     /// Строки карточки: застывшая раскладка (П12) либо живая рекомендация (П11);
-    /// последней строкой — недельные деньги спринта.
+    /// еженедельные статьи — последними (МП28).
     private func contributionRows(_ confirmed: ConfirmedLayout?) -> [Row] {
         // Строка — статья, не потребность: взносы статьи складываются,
         // сколькими бы потребностями балансировка её ни раздала (П6б, layout.md).
         var byArticle: [String: Double] = [:]
-        let weeklyCount: Int
-        let weeklyTotal: Double
 
         // Статья лишней финнедели своего спринта — отдельной строкой ниже (С9).
         let ownExtra = "extra@\(occurrence.sprintStart)"
@@ -145,33 +143,36 @@ struct SprintDetailView: View {
             for c in confirmed.contributions where c.needId != ownExtra {
                 byArticle[c.articleId, default: 0] += c.amount
             }
-            weeklyCount = confirmed.weekAmounts.count
-            weeklyTotal = confirmed.weekAmounts.reduce(0) { $0 + $1.amount }
         } else {
             let rec = model.horizon.recommendation
             for c in rec.contributions where c.incomeId == occurrence.id && c.needId != ownExtra {
                 byArticle[c.articleId, default: 0] += c.amount
             }
-            let starts = (0..<occurrence.sprintWeeks).map { occurrence.sprintStart.adding(days: $0 * 7) }
-            let weekly = rec.weeks.filter { starts.contains($0.start) }
-            weeklyCount = weekly.count
-            weeklyTotal = weekly.reduce(0) { $0 + $1.amount }
         }
 
         var rows = byArticle.map { articleId, amount in
-            Row(id: articleId, name: model.articleName(for: articleId), note: nil, amount: amount)
+            Row(id: articleId, name: model.articleName(for: articleId),
+                note: model.portionNote(articleId: articleId, amount: amount), amount: amount)
         }
         .sorted { (model.needOrder(for: $0.id), $0.name) < (model.needOrder(for: $1.id), $1.name) }
 
         if occurrence.isLongSprint {
-            rows.append(Row(id: ownExtra, name: "дополнительная неделя", note: "собрано ранее",
-                            amount: model.extraWeekCollected(sprintStart: occurrence.sprintStart)))
+            let weeklyIndex = rows.firstIndex { model.needOrder(for: $0.id) >= 3 } ?? rows.endIndex
+            rows.insert(Row(id: ownExtra, name: "дополнительная неделя", note: "собрано ранее",
+                            amount: model.extraWeekCollected(sprintStart: occurrence.sprintStart)),
+                        at: weeklyIndex)
         }
 
-        rows.append(Row(id: "weekly",
-                        name: "недельные деньги",
-                        note: "\(weeklyCount) \(weeksWord(weeklyCount))",
-                        amount: weeklyTotal))
+        // Раскладка, застывшая до еженедельных статей: порций среди взносов нет —
+        // прежняя строка недельных из застывших порций финнедель (П12).
+        if let confirmed, !confirmed.weekAmounts.isEmpty,
+           !rows.contains(where: { model.isWeeklyArticle(key: $0.id) }) {
+            let count = confirmed.weekAmounts.count
+            rows.append(Row(id: "weekly",
+                            name: "недельные деньги",
+                            note: "\(count) \(weeksWord(count))",
+                            amount: confirmed.weekAmounts.reduce(0) { $0 + $1.amount }))
+        }
         return rows
     }
 
@@ -231,6 +232,9 @@ struct SprintDetailView: View {
             return "\(RU.money(speed)) в месяц"
         case .payment(let amount, _, _, _):
             return RU.money(amount)
+        case .weekly(let portion):
+            // Еженедельная паузы не имеет (П9) — ветка для полноты типа.
+            return "\(RU.money(portion)) в неделю"
         }
     }
 

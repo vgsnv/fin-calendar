@@ -162,36 +162,32 @@ private struct DraftView: View {
         // её собирали приходы окна, а не этот приход (С9).
         let ownExtra = "extra@\(occurrence.sprintStart)"
         // Строка — статья, не потребность: балансировка вправе раздать статью
-        // несколькими взносами (помесячные сроки, доли окна, перенос ровностью
-        // П6б) — статья не задваивается, взносы складываются.
+        // несколькими взносами (порции финнедель, помесячные сроки, доли окна,
+        // перенос ровностью П6б) — статья не задваивается, взносы складываются.
         var byArticle: [String: Double] = [:]
         for c in rec.contributions where c.incomeId == occurrence.id && c.needId != ownExtra {
             byArticle[c.articleId, default: 0] += c.amount
         }
         var rows: [Row] = byArticle.map { articleId, amount in
-            Row(id: articleId, name: model.articleName(for: articleId), note: nil, amount: amount)
+            Row(id: articleId, name: model.articleName(for: articleId),
+                note: model.portionNote(articleId: articleId, amount: amount), amount: amount)
         }
         .sorted { (model.needOrder(for: $0.id), $0.name) < (model.needOrder(for: $1.id), $1.name) }
 
-        // Длинный спринт: лишняя финнеделя оплачена собранным заранее (С9, layout.md).
+        // Длинный спринт: лишняя финнеделя оплачена собранным заранее (С9) —
+        // перед еженедельными (МП28).
         if occurrence.isLongSprint {
             let collected = model.extraWeekCollected(sprintStart: occurrence.sprintStart, in: rec)
             let own = rec.contributions
                 .filter { $0.needId == ownExtra && $0.incomeId == occurrence.id }
                 .reduce(0) { $0 + $1.amount }
-            rows.append(Row(id: ownExtra, name: "дополнительная неделя",
+            let weeklyIndex = rows.firstIndex { model.needOrder(for: $0.id) >= 3 } ?? rows.endIndex
+            rows.insert(Row(id: ownExtra, name: "дополнительная неделя",
                             note: own > 0.01 ? "в том числе с этого прихода \(RU.money(own))"
                                              : "собрано ранее",
-                            amount: collected))
+                            amount: collected),
+                        at: weeklyIndex)
         }
-
-        let weekStarts = (0..<occurrence.sprintWeeks).map { occurrence.sprintStart.adding(days: $0 * 7) }
-        let weekly = rec.weeks.filter { weekStarts.contains($0.start) }
-        let total = weekly.reduce(0) { $0 + $1.amount }
-        rows.append(Row(id: "weekly",
-                        name: "недельные деньги",
-                        note: "\(weekly.count) × \(RU.money(model.plan.namedWeek))",
-                        amount: total))
         return rows
     }
 
@@ -226,18 +222,25 @@ private struct ChecklistView: View {
             byArticle[c.articleId, default: 0] += c.amount
         }
         var result = byArticle.map { articleId, amount in
-            (key: articleId, name: model.articleName(for: articleId), note: String?.none, amount: amount)
+            (key: articleId, name: model.articleName(for: articleId),
+             note: model.portionNote(articleId: articleId, amount: amount), amount: amount)
         }
         .sorted { (model.needOrder(for: $0.key), $0.name) < (model.needOrder(for: $1.key), $1.name) }
 
-        // Порядок исполнения (МП28): дополнительная неделя — перед недельными.
+        // Порядок исполнения (МП28): дополнительная неделя — перед еженедельными.
         if occurrence.isLongSprint {
-            result.append((key: ownExtra, name: "дополнительная неделя", note: "собрано ранее",
-                           amount: model.extraWeekCollected(sprintStart: occurrence.sprintStart)))
+            let weeklyIndex = result.firstIndex { model.needOrder(for: $0.key) >= 3 } ?? result.endIndex
+            result.insert((key: ownExtra, name: "дополнительная неделя", note: "собрано ранее",
+                           amount: model.extraWeekCollected(sprintStart: occurrence.sprintStart)),
+                          at: weeklyIndex)
         }
-        let total = layout.weekAmounts.reduce(0) { $0 + $1.amount }
-        result.append((key: "weekly", name: "недельные деньги",
-                       note: "\(layout.weekAmounts.count) недели", amount: total))
+        // Раскладка, застывшая до еженедельных статей: порций среди её взносов
+        // нет — прежняя строка недельных из застывших порций финнедель (П12).
+        if !layout.weekAmounts.isEmpty, !result.contains(where: { model.isWeeklyArticle(key: $0.key) }) {
+            let total = layout.weekAmounts.reduce(0) { $0 + $1.amount }
+            result.append((key: "weekly", name: "недельные деньги",
+                           note: "\(layout.weekAmounts.count) недели", amount: total))
+        }
         return result
     }
 

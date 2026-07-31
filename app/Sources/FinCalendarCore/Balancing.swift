@@ -1,18 +1,18 @@
 /// Балансировка (П6–П10): распределение приходов по статьям и финнеделям.
 ///
-/// Модель: деньги движутся только вперёд во времени (П7). Недельные деньги —
-/// константа плана: каждая финнеделя — жёсткая потребность в полную порцию на
-/// её старте; взнос статьи — потребность на её сроке. У плана два состояния:
-/// сходится или нет (П6). Недостача заявляется с точной цифрой и датой (П9);
-/// недельные деньги не гнутся никогда — решения предлагает только П8.
-/// Излишек прихода после взносов и недельных — свободные деньги (П6а),
-/// и внутри месяца он выравнивается между приходами взносами статей (П6б).
-/// Точные цифры — П10.
+/// Модель: деньги движутся только вперёд во времени (П7). Порции еженедельных
+/// статей — константа балансировки (С9): каждая финнеделя — жёсткая потребность
+/// в полные порции на её старте; взнос прочей статьи — потребность на её сроке.
+/// У плана два состояния: сходится или нет (П6). Недостача заявляется с точной
+/// цифрой и датой (П9); порции не гнутся никогда — решения предлагает только П8.
+/// Излишек прихода после взносов — свободные деньги (П6а), и внутри месяца он
+/// выравнивается между приходами взносами прочих статей (П6б). Точные цифры — П10.
 
 public enum NeedKind: Equatable, Sendable {
     case payment       // платёж с датой, подготовка заранее
     case fundSpeed     // взнос фонда со своего прихода
     case intentSpeed   // взнос замысла со своего прихода
+    case weeklyPortion // порция еженедельной статьи на старт финнедели (С9)
 }
 
 /// Потребность плана: сумма, которая должна быть собрана к сроку.
@@ -51,7 +51,7 @@ public struct BalancingIncome: Sendable {
     }
 }
 
-/// Финнеделя рекомендации: всегда полная порция (П1, П9).
+/// Финнеделя рекомендации: всегда полные порции всех еженедельных статей (П1, П9).
 public struct WeekAmount: Equatable, Sendable {
     public let start: CivilDate
     public let amount: Double
@@ -81,36 +81,33 @@ public struct Recommendation: Sendable {
 }
 
 public struct Balancer: Sendable {
-    public let namedWeek: Double
 
-    public init(namedWeek: Double) {
-        precondition(namedWeek >= 0)
-        self.namedWeek = namedWeek
-    }
+    public init() {}
 
     // MARK: Проверка сходимости и назначение источников
 
-    /// Рекомендация: каждая финнеделя — полная порция, статьи — по срокам.
-    /// Не помещается — недостача с цифрой и датой (П9), решения — П8.
-    public func recommend(incomes: [BalancingIncome], weekStarts: [CivilDate], needs: [Need]) -> Recommendation {
-        let weekAmounts = weekStarts.sorted().map { ($0, namedWeek) }
-        return fund(incomes: incomes, weekAmounts: weekAmounts, needs: needs)
+    /// Рекомендация: каждая финнеделя — полные порции еженедельных, прочие статьи —
+    /// по срокам. Не помещается — недостача с цифрой и датой (П9), решения — П8.
+    public func recommend(incomes: [BalancingIncome], needs: [Need]) -> Recommendation {
+        var slots: [Slot] = needs.map {
+            Slot(due: $0.due, amount: $0.amount, needId: $0.id, weekly: $0.kind == .weeklyPortion)
+        }
+        // При равном сроке первыми кормятся порции — старшинство еженедельных (П6):
+        // они не гнутся никогда, недостачу забирает прочая статья (П9). Дальше —
+        // по id: расчёт однозначен.
+        slots.sort { ($0.due, $0.weekly ? 0 : 1, $0.needId) < ($1.due, $1.weekly ? 0 : 1, $1.needId) }
+        return fund(incomes: incomes, slots: slots, needs: needs)
     }
 
-    private struct Slot { let due: CivilDate; let amount: Double; let needId: String? }
+    private struct Slot { let due: CivilDate; let amount: Double; let needId: String; let weekly: Bool }
 
     /// Кто кого кормит: каждая потребность — из последнего успевшего прихода (LIFO).
-    /// Так резерв с ранних приходов возникает только по необходимости, а свободные
-    /// деньги остаются у своих приходов (П6а, кейс 1). Слот, на который денег
-    /// не хватило, становится недостачей своей даты (П9). Готовую раздачу взносов
-    /// довыравнивает `level` — ровность свободных денег внутри месяца (П6б).
-    private func fund(incomes: [BalancingIncome], weekAmounts: [(CivilDate, Double)], needs: [Need]) -> Recommendation {
-        var slots: [Slot] = weekAmounts.map { Slot(due: $0.0, amount: $0.1, needId: nil) }
-            + needs.map { Slot(due: $0.due, amount: $0.amount, needId: $0.id) }
-        // При равном сроке первой кормится финнеделя: недельные не гнутся никогда,
-        // недостачу забирает статья (П9). Дальше — по имени: расчёт однозначен.
-        slots.sort { ($0.due, $0.needId ?? "") < ($1.due, $1.needId ?? "") }
-
+    /// В норме порцию так кормит приход её спринта (С9), а резерв с ранних приходов
+    /// возникает только по необходимости — свободные деньги остаются у своих
+    /// приходов (П6а, кейс 1). Слот, на который денег не хватило, становится
+    /// недостачей своей даты (П9). Готовую раздачу взносов довыравнивает `level` —
+    /// ровность свободных денег внутри месяца (П6б).
+    private func fund(incomes: [BalancingIncome], slots: [Slot], needs: [Need]) -> Recommendation {
         var remaining = Dictionary(uniqueKeysWithValues: incomes.map { ($0.id, $0.amount) })
         let byDate = incomes.sorted { $0.factDate < $1.factDate }
         // Взносы по слотам: у дополнительной недели один id на несколько сроков (С10),
@@ -125,7 +122,7 @@ public struct Balancer: Sendable {
                 guard take > 1e-9 else { continue }
                 remaining[income.id]! -= take
                 toFund -= take
-                if slot.needId != nil { funded[i][income.id, default: 0] += take }
+                funded[i][income.id, default: 0] += take
             }
             if toFund > 1e-9 { missingByDate[slot.due, default: 0] += toFund }
         }
@@ -140,21 +137,25 @@ public struct Balancer: Sendable {
         var contributions: [Contribution] = []
         var at: [Pair: Int] = [:]
         for (i, slot) in slots.enumerated() {
-            guard let needId = slot.needId else { continue }
             for (incomeId, amount) in funded[i].sorted(by: { order[$0.key]! < order[$1.key]! })
             where amount > 1e-9 {
-                let pair = Pair(needId: needId, incomeId: incomeId)
+                let pair = Pair(needId: slot.needId, incomeId: incomeId)
                 if let j = at[pair] {
-                    contributions[j] = Contribution(needId: needId, incomeId: incomeId,
+                    contributions[j] = Contribution(needId: slot.needId, incomeId: incomeId,
                                                     amount: contributions[j].amount + amount)
                 } else {
                     at[pair] = contributions.count
-                    contributions.append(Contribution(needId: needId, incomeId: incomeId, amount: amount))
+                    contributions.append(Contribution(needId: slot.needId, incomeId: incomeId,
+                                                      amount: amount))
                 }
             }
         }
 
-        let weeks = weekAmounts.map { WeekAmount(start: $0.0, amount: $0.1) }
+        // Финнедели рекомендации — суммы порций по стартам, всегда полные (П9):
+        // выдача и застывание не зависят от того, как порции кормились.
+        let weeks = Dictionary(grouping: needs.filter { $0.kind == .weeklyPortion }, by: \.due)
+            .map { WeekAmount(start: $0.key, amount: $0.value.reduce(0) { $0 + $1.amount }) }
+            .sorted { $0.start < $1.start }
         let shortfalls = missingByDate
             .map { Shortfall(date: $0.key, amount: $0.value) }
             .sorted { $0.date < $1.date }
@@ -168,14 +169,14 @@ public struct Balancer: Sendable {
     /// свободные деньги приходов сравнялись: большой приход сознательно грузится
     /// статьями сильнее маленького (П6).
     ///
-    /// Переносятся только взносы. Порция финнедели остаётся на приходе своего
-    /// спринта: недельные — константа плана (П9), и раскладка каждого прихода
-    /// сходится по арифметике. Сроки нерушимы (П7): взнос ложится только на приход,
-    /// успевающий до срока потребности, — поэтому ровность достигается «насколько
-    /// возможно», а не всегда. Суммарная нагрузка месяца не меняется: недостачи
-    /// остаются те же (П9), и резерв с прошлых месяцев по-прежнему возникает только
-    /// по необходимости — между месяцами ровности нет, свободные деньги остаются
-    /// свойством прихода (П6а).
+    /// Переносятся только взносы прочих статей. Порции еженедельных не переносятся
+    /// никогда: взнос порции не покидает свой спринт (С9), и раскладка каждого
+    /// прихода сходится по арифметике. Сроки нерушимы (П7): взнос ложится только
+    /// на приход, успевающий до срока потребности, — поэтому ровность достигается
+    /// «насколько возможно», а не всегда. Суммарная нагрузка месяца не меняется:
+    /// недостачи остаются те же (П9), и резерв с прошлых месяцев по-прежнему
+    /// возникает только по необходимости — между месяцами ровности нет, свободные
+    /// деньги остаются свойством прихода (П6а).
     private func level(slots: [Slot], incomes: [BalancingIncome],
                        funded: inout [[String: Double]], remaining: inout [String: Double]) {
         let groups = Dictionary(grouping: incomes, by: \.month)
@@ -187,7 +188,7 @@ public struct Balancer: Sendable {
             // Снимаем с приходов месяца их взносы — раздадим заново, выравнивая остатки.
             var free = Dictionary(uniqueKeysWithValues: members.map { ($0, remaining[$0] ?? 0) })
             var burdens: [(slot: Int, due: CivilDate, amount: Double)] = []
-            for i in slots.indices where slots[i].needId != nil {
+            for i in slots.indices where !slots[i].weekly {
                 var taken = 0.0
                 for id in members {
                     guard let share = funded[i][id] else { continue }
@@ -239,11 +240,11 @@ public struct Balancer: Sendable {
     }
 
     /// Варианты, когда план не сходится: сначала гнутся фонды, затем замыслы,
-    /// затем даты платежей (П8). Недельные деньги в списке не участвуют
-    /// никогда (П9): урезания недели среди вариантов не существует по построению.
-    public func bendingOptions(incomes: [BalancingIncome], weekStarts: [CivilDate],
-                               needs: [Need], paymentShiftDays: Int = 14) -> [BendingOption] {
-        let base = recommend(incomes: incomes, weekStarts: weekStarts, needs: needs)
+    /// затем даты платежей (П8). Еженедельные статьи в списке не участвуют
+    /// никогда (П9): урезания порции среди вариантов не существует по построению.
+    public func bendingOptions(incomes: [BalancingIncome], needs: [Need],
+                               paymentShiftDays: Int = 14) -> [BendingOption] {
+        let base = recommend(incomes: incomes, needs: needs)
         guard !base.fits else { return [] }
 
         var options: [BendingOption] = []
@@ -252,13 +253,11 @@ public struct Balancer: Sendable {
             return needs.filter { $0.kind == kind && seen.insert($0.name).inserted }
         }
         for n in names(.fundSpeed) {
-            let rec = recommend(incomes: incomes, weekStarts: weekStarts,
-                                needs: needs.filter { $0.name != n.name })
+            let rec = recommend(incomes: incomes, needs: needs.filter { $0.name != n.name })
             options.append(BendingOption(bending: .pauseFund(needName: n.name), recomputed: rec))
         }
         for n in names(.intentSpeed) {
-            let rec = recommend(incomes: incomes, weekStarts: weekStarts,
-                                needs: needs.filter { $0.name != n.name })
+            let rec = recommend(incomes: incomes, needs: needs.filter { $0.name != n.name })
             options.append(BendingOption(bending: .pauseIntent(needName: n.name), recomputed: rec))
         }
         // Платёж, живущий несколькими потребностями (ежемесячный — по одной на месяц,
@@ -271,7 +270,7 @@ public struct Balancer: Sendable {
                            due: need.due.adding(days: paymentShiftDays), amount: need.amount)
                     : need
             }
-            let rec = recommend(incomes: incomes, weekStarts: weekStarts, needs: shifted)
+            let rec = recommend(incomes: incomes, needs: shifted)
             options.append(BendingOption(bending: .shiftPaymentDate(needName: n.name, days: paymentShiftDays),
                                          recomputed: rec))
         }

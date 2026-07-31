@@ -4,16 +4,18 @@ import XCTest
 /// Слой плана: живой пересчёт (П11–П12), жизненный цикл статей (С3–С10),
 /// дополнительная финнеделя (С9), недостача (П9), пропущенная раскладка (С15а).
 /// Сквозной пример: приходы 5-го («Аванс» 50 000) и 20-го («Зарплата» 55 000),
-/// неделя 12 000, граница — суббота, июль 2027-го.
+/// еженедельная статья «Неделя» с порцией 12 000, граница — суббота, июль 2027-го.
 final class PlanTests: XCTestCase {
+
+    private let week = Article(id: "неделя", name: "Неделя", kind: .weekly(portion: 12_000))
 
     private func makePlan(articles: [Article] = [], confirmed: [ConfirmedLayout] = [],
                           entryDate: CivilDate = CivilDate(2027, 7, 1)) -> Plan {
-        Plan(namedWeek: 12_000, weekBoundary: 6,
+        Plan(weekBoundary: 6,
              incomes: [PlannedIncome(anchor: Anchor(day: 5, name: "Аванс"), plannedAmount: 50_000),
                        PlannedIncome(anchor: Anchor(day: 20, name: "Зарплата"), plannedAmount: 55_000)],
              entryDate: entryDate,
-             articles: articles, confirmed: confirmed)
+             articles: [week] + articles, confirmed: confirmed)
     }
 
     private let today = CivilDate(2027, 7, 1)
@@ -210,10 +212,10 @@ final class PlanTests: XCTestCase {
         // на аванс — у прихода два взноса одной статьи с разными потребностями.
         // Строка раскладки группируется по статье: «одежда» у аванса одна, суммой долей.
         let clothes = Article(id: "одежда", name: "одежда", kind: .fund(monthlySpeed: 6_000))
-        let plan = Plan(namedWeek: 12_000, weekBoundary: 6,
+        let plan = Plan(weekBoundary: 6,
                         incomes: [PlannedIncome(anchor: Anchor(day: 5, name: "Аванс"), plannedAmount: 60_000),
                                   PlannedIncome(anchor: Anchor(day: 20, name: "Зарплата"), plannedAmount: 40_000)],
-                        entryDate: today, articles: [clothes])
+                        entryDate: today, articles: [week, clothes])
         let r = PlanEngine.recompute(plan, today: today, horizonMonths: 2)
 
         let advance = r.recommendation.contributions.filter {
@@ -233,10 +235,10 @@ final class PlanTests: XCTestCase {
         // Доли окна дополнительной недели делят один id потребности (С10), и ровность
         // может сложить несколько долей на один приход — взнос пары
         // «потребность-приход» обязан остаться одной записью, а не задвоиться.
-        let plan = Plan(namedWeek: 12_000, weekBoundary: 6,
+        let plan = Plan(weekBoundary: 6,
                         incomes: [PlannedIncome(anchor: Anchor(day: 5, name: "Аванс"), plannedAmount: 60_000),
                                   PlannedIncome(anchor: Anchor(day: 20, name: "Зарплата"), plannedAmount: 40_000)],
-                        entryDate: today)
+                        entryDate: today, articles: [week])
         let r = PlanEngine.recompute(plan, today: today, horizonMonths: 2)
 
         let extraJuly = r.recommendation.contributions.filter {
@@ -249,5 +251,75 @@ final class PlanTests: XCTestCase {
         let pairs = r.recommendation.contributions.map { "\($0.needId)|\($0.incomeId)" }
         XCTAssertEqual(pairs.count, Set(pairs).count,
                        "пара «потребность-приход» встречается не больше одного раза")
+    }
+
+    // MARK: Еженедельные статьи (С9): сумма порций, миграция, застывание
+
+    /// Неделя-константа старого хранилища читается еженедельной статьёй (С9):
+    /// порция — данные плана, не конфигурация; повторное чтение статью не задваивает.
+    func testLegacyNamedWeekBecomesWeeklyArticle() throws {
+        let bare = Plan(weekBoundary: 6,
+                        incomes: [PlannedIncome(anchor: Anchor(day: 5, name: "Аванс"), plannedAmount: 50_000)],
+                        entryDate: today)
+        var object = try JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(bare)) as! [String: Any]
+        object["namedWeek"] = 12_000
+        let legacy = try JSONDecoder().decode(
+            Plan.self, from: JSONSerialization.data(withJSONObject: object))
+
+        XCTAssertEqual(legacy.weeklySum, 12_000, accuracy: 0.01)
+        XCTAssertEqual(legacy.articles.filter(\.isWeekly).count, 1)
+
+        // Новый формат ключа namedWeek не пишет — прочитанный план стабилен.
+        let again = try JSONDecoder().decode(Plan.self, from: JSONEncoder().encode(legacy))
+        XCTAssertEqual(again.articles.filter(\.isWeekly).count, 1, "статья не задвоилась")
+        XCTAssertEqual(again.weeklySum, 12_000, accuracy: 0.01)
+    }
+
+    /// Деньги недели — сумма порций всех еженедельных статей (С9, П1): и финнедели
+    /// рекомендации, и цель сбора дополнительной недели считаются от суммы.
+    func testWeeklySumDrivesWeeksAndExtraTarget() {
+        let food = Article(id: "еда", name: "еда", kind: .weekly(portion: 8_000))
+        let fun = Article(id: "развлечения", name: "развлечения", kind: .weekly(portion: 4_000))
+        let plan = Plan(weekBoundary: 6,
+                        incomes: [PlannedIncome(anchor: Anchor(day: 5, name: "Аванс"), plannedAmount: 50_000),
+                                  PlannedIncome(anchor: Anchor(day: 20, name: "Зарплата"), plannedAmount: 55_000)],
+                        entryDate: today, articles: [food, fun])
+        let r = PlanEngine.recompute(plan, today: today, horizonMonths: 6)
+
+        XCTAssertEqual(plan.weeklySum, 12_000, accuracy: 0.01)
+        for w in r.recommendation.weeks {
+            XCTAssertEqual(w.amount, 12_000, accuracy: 0.01, "финнеделя — все порции разом")
+        }
+        guard let long = r.occurrences.first(where: { $0.isLongSprint && $0.sprintStart > today })
+        else { return XCTFail("в горизонте нет будущего длинного спринта") }
+        let collected = r.recommendation.contributions
+            .filter { $0.needId == "extra@\(long.sprintStart)" }.reduce(0) { $0 + $1.amount }
+        XCTAssertEqual(collected, 12_000, accuracy: 0.01,
+                       "цель сбора лишней недели — порции обеих статей (С10)")
+    }
+
+    /// Подтверждение раскладки длинного спринта замораживает и лишнюю финнеделю
+    /// (МП36): её порция — цель сбора на момент подтверждения, выдача читается
+    /// из застывшего, правка еженедельных дальше текущий спринт не трогает (П12).
+    func testFrozenLongSprintLayoutIncludesExtraWeek() {
+        let plan = makePlan()
+        let r = PlanEngine.recompute(plan, today: today, horizonMonths: 6)
+        guard let long = r.occurrences.first(where: \.isLongSprint)
+        else { return XCTFail("в горизонте нет длинного спринта") }
+
+        let frozen = ConfirmedLayout.frozen(occurrence: long, factAmount: long.plannedAmount,
+                                            incomeName: "Аванс",
+                                            recommendation: r.recommendation,
+                                            weeklySum: plan.weeklySum)
+        XCTAssertEqual(frozen.weekAmounts.count, long.sprintWeeks,
+                       "все финнедели спринта застыли, лишняя — тоже")
+        let extraStart = long.sprintStart.adding(days: (long.sprintWeeks - 1) * 7)
+        let extra = frozen.weekAmounts.first { $0.start == extraStart }
+        XCTAssertEqual(extra?.amount ?? 0, 12_000, accuracy: 0.01,
+                       "порция лишней недели застыла целью сбора")
+        for w in frozen.weekAmounts where w.start != extraStart {
+            XCTAssertEqual(w.amount, 12_000, accuracy: 0.01)
+        }
     }
 }

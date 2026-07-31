@@ -7,20 +7,18 @@ struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
 
-    // Недельные деньги
-    @State private var weekText = ""
     // Приходы: правки живут локально до «Сохранить приходы»
     @State private var incomeDrafts: [IncomeDraft] = []
     @State private var thirdIncomeRefused = false
     // Начать заново
     @State private var showEraseDialog = false
 
+    // Еженедельных денег здесь нет: это статьи плана, порции правятся
+    // из карточек, как любые статьи (С9, settings.md).
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 8) {
                 header
-                sectionTitle("Недельные деньги")
-                namedWeekCard
                 sectionTitle("Приходы")
                 incomesSection
                 sectionTitle("Граница финнедели")
@@ -37,7 +35,6 @@ struct SettingsView: View {
         }
         .background(Theme.bg)
         .onAppear {
-            weekText = RU.money(model.plan.namedWeek)
             incomeDrafts = model.plan.incomes.map(IncomeDraft.init)
         }
         .confirmationDialog("Начать заново", isPresented: $showEraseDialog,
@@ -101,56 +98,6 @@ struct SettingsView: View {
         Text(text)
             .font(.system(size: 12))
             .foregroundStyle(Theme.textMuted)
-    }
-
-    // MARK: Недельные деньги (МП36)
-
-    private var parsedWeek: Double? {
-        Double(weekText.replacingOccurrences(of: " ", with: ""))
-    }
-
-    private var weekSaveDisabled: Bool {
-        guard let value = parsedWeek, value > 0 else { return true }
-        return abs(value - model.plan.namedWeek) < 0.5
-    }
-
-    private var namedWeekCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            card {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("на финнеделю")
-                            .font(.system(size: 15))
-                            .foregroundStyle(Theme.textMuted)
-                            .fixedSize()
-                        TextField("", text: $weekText)
-                            .keyboardType(.numberPad)
-                            .multilineTextAlignment(.trailing)
-                            .font(.system(size: 24, weight: .semibold))
-                            .foregroundStyle(Theme.text)
-                            .frame(maxWidth: .infinity)
-                    }
-                    if let value = parsedWeek {
-                        let fits = model.fits(namedWeek: value)
-                        HStack(spacing: 6) {
-                            Circle()
-                                .fill(fits ? Theme.accent : Theme.textFaint)
-                                .frame(width: 6, height: 6)
-                            Text(fits ? "помещается" : "не помещается")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(fits ? Theme.accent : Theme.textMuted)
-                        }
-                    }
-                }
-                .padding(14)
-            }
-            primaryButton("Сохранить", disabled: weekSaveDisabled) {
-                guard let value = parsedWeek else { return }
-                model.setNamedWeek(value)
-                weekText = RU.money(value)
-            }
-            footnote("действует со следующей раскладки, текущий спринт доживает на прежней порции")
-        }
     }
 
     // MARK: Приходы (П5, П11, К5)

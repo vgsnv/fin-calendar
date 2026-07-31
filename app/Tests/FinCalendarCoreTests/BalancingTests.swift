@@ -2,15 +2,28 @@ import XCTest
 @testable import FinCalendarCore
 
 /// Приёмочные тесты балансировки по эталону tests/balancing.md (кейсы 1–6).
-/// Сквозной пример: приходы 5-го и 20-го, спринты по 2 финнедели,
-/// недельные деньги — 12 000/финнеделя. Даты — июль 2027 (граница — суббота):
+/// Сквозной пример: приходы 5-го и 20-го, спринты по 2 финнедели, еженедельная
+/// статья одна — «неделя», порция 12 000. Даты — июль 2027 (граница — суббота):
 /// приход 5.07 → старт 10.07 (недели 10.07, 17.07); приход 20.07 → старт 24.07
 /// (недели 24.07, 31.07).
 final class BalancingTests: XCTestCase {
 
-    private let balancer = Balancer(namedWeek: 12_000)
+    private let balancer = Balancer()
     private let weekStarts = [CivilDate(2027, 7, 10), CivilDate(2027, 7, 17),
                               CivilDate(2027, 7, 24), CivilDate(2027, 7, 31)]
+
+    /// Порции еженедельной статьи на каждый старт финнедели (С9): потребности
+    /// финнедель — такие же взносы, а не константа балансировщика.
+    private func weekly(_ starts: [CivilDate], portion: Double = 12_000,
+                        article: String = "неделя") -> [Need] {
+        starts.map { Need(id: "\(article)@\($0)", name: article, kind: .weeklyPortion,
+                          due: $0, amount: portion) }
+    }
+
+    private func recommend(incomes: [BalancingIncome], weekStarts: [CivilDate],
+                           needs: [Need] = []) -> Recommendation {
+        balancer.recommend(incomes: incomes, needs: weekly(weekStarts) + needs)
+    }
 
     private func contribution(_ rec: Recommendation, need: String, income: String) -> Double {
         rec.contributions.filter { $0.needId == need && $0.incomeId == income }
@@ -22,7 +35,7 @@ final class BalancingTests: XCTestCase {
     func testCase1_perfectEvennessAndFreeMoneyPerIncome() {
         let incomes = [BalancingIncome(id: "аванс", factDate: CivilDate(2027, 7, 5), amount: 60_000),
                        BalancingIncome(id: "зарплата", factDate: CivilDate(2027, 7, 20), amount: 40_000)]
-        let rec = balancer.recommend(incomes: incomes, weekStarts: weekStarts, needs: [])
+        let rec = recommend(incomes: incomes, weekStarts: weekStarts, needs: [])
 
         XCTAssertTrue(rec.fits, "недостач нет, П9 молчит")
         for w in rec.weeks { XCTAssertEqual(w.amount, 12_000, accuracy: 0.01) }
@@ -38,7 +51,7 @@ final class BalancingTests: XCTestCase {
                        BalancingIncome(id: "зарплата", factDate: CivilDate(2027, 7, 20), amount: 18_000)]
         let insurance = Need(id: "страховка", name: "страховка", kind: .payment,
                              due: CivilDate(2027, 7, 28), amount: 12_000)
-        let rec = balancer.recommend(incomes: incomes, weekStarts: weekStarts, needs: [insurance])
+        let rec = recommend(incomes: incomes, weekStarts: weekStarts, needs: [insurance])
 
         // Недельные не гнутся никогда (П9): каждая финнеделя — полная порция
         for w in rec.weeks { XCTAssertEqual(w.amount, 12_000, accuracy: 0.01) }
@@ -59,7 +72,7 @@ final class BalancingTests: XCTestCase {
                        BalancingIncome(id: "зарплата", factDate: CivilDate(2027, 7, 20), amount: 40_000)]
         let payment = Need(id: "платёж", name: "платёж", kind: .payment,
                            due: CivilDate(2027, 7, 18), amount: 20_000)
-        let rec = balancer.recommend(incomes: incomes, weekStarts: weekStarts, needs: [payment])
+        let rec = recommend(incomes: incomes, weekStarts: weekStarts, needs: [payment])
 
         // Ни один взнос — приходу после даты (П7)
         XCTAssertEqual(contribution(rec, need: "платёж", income: "зарплата"), 0, accuracy: 0.01)
@@ -93,12 +106,12 @@ final class BalancingTests: XCTestCase {
         needs.append(Need(id: "платёж", name: "платёж", kind: .payment,
                           due: CivilDate(2027, 8, 18), amount: 45_000))
 
-        let base = balancer.recommend(incomes: incomes, weekStarts: weekStarts, needs: needs)
+        let base = recommend(incomes: incomes, weekStarts: weekStarts, needs: needs)
         XCTAssertFalse(base.fits)
         XCTAssertFalse(base.shortfalls.isEmpty, "скоростей больше, чем приходов минус недельные")
         for w in base.weeks { XCTAssertEqual(w.amount, 12_000, accuracy: 0.01, "недельные не гнутся (П9)") }
 
-        let options = balancer.bendingOptions(incomes: incomes, weekStarts: weekStarts, needs: needs)
+        let options = balancer.bendingOptions(incomes: incomes, needs: weekly(weekStarts) + needs)
         XCTAssertFalse(options.isEmpty)
         // Строго в порядке жёсткости: фонд → замысел → платёж (П8)
         let kinds: [Int] = options.map {
@@ -111,8 +124,14 @@ final class BalancingTests: XCTestCase {
         XCTAssertEqual(kinds, kinds.sorted(), "порядок предложений: фонды → замыслы → платежи")
         XCTAssertEqual(kinds.first, 0)
         XCTAssertEqual(kinds.last, 2)
-        // Урезание недели вариантом не является (П9): все варианты гнут статьи
-        // (гарантировано типом Bending — недельных денег в нём нет по построению).
+        // Урезание порции вариантом не является (П9): еженедельная статья
+        // в развилках не участвует — ни один вариант её не называет.
+        for option in options {
+            switch option.bending {
+            case .pauseFund(let n), .pauseIntent(let n), .shiftPaymentDate(let n, _):
+                XCTAssertNotEqual(n, "неделя", "еженедельные не гнутся (П9)")
+            }
+        }
     }
 
     // MARK: Кейс 5 · правка посреди горизонта — граница пересчёта (П12)
@@ -130,7 +149,7 @@ final class BalancingTests: XCTestCase {
                            CivilDate(2027, 8, 7), CivilDate(2027, 8, 14)]
         let payment = Need(id: "новый", name: "новый платёж", kind: .payment,
                            due: CivilDate(2027, 8, 20), amount: 15_000)
-        let rec = balancer.recommend(incomes: futureIncomes, weekStarts: futureWeeks, needs: [payment])
+        let rec = recommend(incomes: futureIncomes, weekStarts: futureWeeks, needs: [payment])
 
         // Взносы нового платежа — по приходам от 20-го и далее (П7, П11)
         let total = rec.contributions.filter { $0.needId == "новый" }.reduce(0) { $0 + $1.amount }
@@ -150,7 +169,7 @@ final class BalancingTests: XCTestCase {
                        BalancingIncome(id: "зарплата", factDate: CivilDate(2027, 7, 20), amount: 48_000)]
         let payment = Need(id: "платёж", name: "платёж", kind: .payment,
                            due: CivilDate(2027, 7, 28), amount: 20_000)
-        let rec = balancer.recommend(incomes: incomes, weekStarts: weekStarts, needs: [payment])
+        let rec = recommend(incomes: incomes, weekStarts: weekStarts, needs: [payment])
 
         // Свободные деньги приходов одного месяца сравнялись (П6б)
         XCTAssertEqual(rec.freeMoney["аванс"]!, 20_000, accuracy: 0.01)
@@ -174,7 +193,7 @@ final class BalancingTests: XCTestCase {
                      CivilDate(2027, 1, 23), CivilDate(2027, 1, 30)]
         let payment = Need(id: "платёж", name: "платёж", kind: .payment,
                            due: CivilDate(2027, 1, 28), amount: 20_000)
-        let rec = balancer.recommend(incomes: incomes, weekStarts: weeks, needs: [payment])
+        let rec = recommend(incomes: incomes, weekStarts: weeks, needs: [payment])
 
         XCTAssertEqual(rec.freeMoney["аванс"]!, 20_000, accuracy: 0.01,
                        "приход декабрьский по факту, но январский по опорной дате")
@@ -189,15 +208,56 @@ final class BalancingTests: XCTestCase {
         // Платёж до зарплаты: кормит только аванс, ровнять нечем (П7).
         let early = Need(id: "платёж", name: "платёж", kind: .payment,
                          due: CivilDate(2027, 7, 18), amount: 20_000)
-        let rec = balancer.recommend(incomes: incomes, weekStarts: weekStarts, needs: [early])
+        let rec = recommend(incomes: incomes, weekStarts: weekStarts, needs: [early])
         XCTAssertEqual(contribution(rec, need: "платёж", income: "зарплата"), 0, accuracy: 0.01)
         XCTAssertEqual(rec.freeMoney["аванс"]!, 16_000, accuracy: 0.01)
         XCTAssertEqual(rec.freeMoney["зарплата"]!, 24_000, accuracy: 0.01)
 
         // Статей нет — переносить нечего: ровность недостижима, кейс 1 в силе.
-        let bare = balancer.recommend(incomes: incomes, weekStarts: weekStarts, needs: [])
+        let bare = recommend(incomes: incomes, weekStarts: weekStarts, needs: [])
         XCTAssertEqual(bare.freeMoney["аванс"]!, 36_000, accuracy: 0.01)
         XCTAssertEqual(bare.freeMoney["зарплата"]!, 24_000, accuracy: 0.01)
+    }
+
+    /// Ровность двигает только взносы прочих статей: порция еженедельной остаётся
+    /// взносом прихода своего спринта (С9), даже когда свободные деньги неравны.
+    func testLevellingNeverMovesWeeklyPortions() {
+        let incomes = [BalancingIncome(id: "аванс", factDate: CivilDate(2027, 7, 5), amount: 60_000),
+                       BalancingIncome(id: "зарплата", factDate: CivilDate(2027, 7, 20), amount: 30_000)]
+        let rec = recommend(incomes: incomes, weekStarts: weekStarts, needs: [])
+
+        // Каждую порцию кормит приход её спринта — переносов нет
+        for start in [CivilDate(2027, 7, 10), CivilDate(2027, 7, 17)] {
+            XCTAssertEqual(contribution(rec, need: "неделя@\(start)", income: "аванс"),
+                           12_000, accuracy: 0.01)
+        }
+        for start in [CivilDate(2027, 7, 24), CivilDate(2027, 7, 31)] {
+            XCTAssertEqual(contribution(rec, need: "неделя@\(start)", income: "зарплата"),
+                           12_000, accuracy: 0.01)
+        }
+        // Свободные деньги остались разными: порции не рычаг ровности (П6б, П9)
+        XCTAssertEqual(rec.freeMoney["аванс"]!, 36_000, accuracy: 0.01)
+        XCTAssertEqual(rec.freeMoney["зарплата"]!, 6_000, accuracy: 0.01)
+    }
+
+    /// Несколько еженедельных статей ведут себя как одна с суммой порций (С9):
+    /// финнеделя — все порции разом, каждая статья — своим взносом.
+    func testSeveralWeeklyArticlesActAsOneWithSummedPortions() {
+        let incomes = [BalancingIncome(id: "аванс", factDate: CivilDate(2027, 7, 5), amount: 60_000),
+                       BalancingIncome(id: "зарплата", factDate: CivilDate(2027, 7, 20), amount: 40_000)]
+        let needs = weekly(weekStarts, portion: 8_000, article: "еда")
+            + weekly(weekStarts, portion: 4_000, article: "развлечения")
+        let rec = balancer.recommend(incomes: incomes, needs: needs)
+
+        // Финнеделя рекомендации — сумма порций, как одна статья с 12 000 (кейс 1)
+        for w in rec.weeks { XCTAssertEqual(w.amount, 12_000, accuracy: 0.01) }
+        XCTAssertEqual(rec.freeMoney["аванс"]!, 36_000, accuracy: 0.01)
+        XCTAssertEqual(rec.freeMoney["зарплата"]!, 16_000, accuracy: 0.01)
+        // По каждой действуют те же правила: взнос порции — от прихода её спринта
+        XCTAssertEqual(contribution(rec, need: "еда@\(CivilDate(2027, 7, 10))", income: "аванс"),
+                       8_000, accuracy: 0.01)
+        XCTAssertEqual(contribution(rec, need: "развлечения@\(CivilDate(2027, 7, 24))", income: "зарплата"),
+                       4_000, accuracy: 0.01)
     }
 
     // MARK: Кейс 6 · свободные деньги — порядок предложений (П6а)
