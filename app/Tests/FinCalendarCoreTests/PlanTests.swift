@@ -202,4 +202,52 @@ final class PlanTests: XCTestCase {
         XCTAssertFalse(r.occurrences.contains { $0.id == "5@2027-07-05" },
                        "пропущенный приход не восстанавливается задним числом")
     }
+
+    // MARK: Статья не задваивается: строка раскладки — статья, не потребность (П6б, С10)
+
+    func testLeveledFundStaysOneArticleRowPerIncome() {
+        // Аванс крупнее зарплаты: ровность (П6б) складывает обе месячные доли фонда
+        // на аванс — у прихода два взноса одной статьи с разными потребностями.
+        // Строка раскладки группируется по статье: «одежда» у аванса одна, суммой долей.
+        let clothes = Article(id: "одежда", name: "одежда", kind: .fund(monthlySpeed: 6_000))
+        let plan = Plan(namedWeek: 12_000, weekBoundary: 6,
+                        incomes: [PlannedIncome(anchor: Anchor(day: 5, name: "Аванс"), plannedAmount: 60_000),
+                                  PlannedIncome(anchor: Anchor(day: 20, name: "Зарплата"), plannedAmount: 40_000)],
+                        entryDate: today, articles: [clothes])
+        let r = PlanEngine.recompute(plan, today: today, horizonMonths: 2)
+
+        let advance = r.recommendation.contributions.filter {
+            $0.incomeId == "5@2027-07-05" && $0.articleId == "одежда"
+        }
+        XCTAssertEqual(Set(advance.map(\.needId)).count, 2,
+                       "ровность перенесла долю с даты зарплаты на аванс (П6б)")
+        XCTAssertEqual(advance.reduce(0) { $0 + $1.amount }, 6_000, accuracy: 0.01,
+                       "строка статьи у аванса — сумма долей, не две строки")
+        let salary = r.recommendation.contributions.filter {
+            $0.incomeId == "20@2027-07-20" && $0.articleId == "одежда"
+        }
+        XCTAssertTrue(salary.isEmpty, "большой приход сознательно грузится сильнее (П6)")
+    }
+
+    func testExtraWeekSharesMergeIntoOneContribution() {
+        // Доли окна дополнительной недели делят один id потребности (С10), и ровность
+        // может сложить несколько долей на один приход — взнос пары
+        // «потребность-приход» обязан остаться одной записью, а не задвоиться.
+        let plan = Plan(namedWeek: 12_000, weekBoundary: 6,
+                        incomes: [PlannedIncome(anchor: Anchor(day: 5, name: "Аванс"), plannedAmount: 60_000),
+                                  PlannedIncome(anchor: Anchor(day: 20, name: "Зарплата"), plannedAmount: 40_000)],
+                        entryDate: today)
+        let r = PlanEngine.recompute(plan, today: today, horizonMonths: 2)
+
+        let extraJuly = r.recommendation.contributions.filter {
+            $0.incomeId == "5@2027-07-05" && $0.articleId == "extra"
+        }
+        XCTAssertEqual(extraJuly.count, 1, "доли одной лишней недели сложены в один взнос")
+        XCTAssertEqual(extraJuly.first?.amount ?? 0, 6_000, accuracy: 0.01,
+                       "своя доля и перенесённая ровностью — суммой")
+
+        let pairs = r.recommendation.contributions.map { "\($0.needId)|\($0.incomeId)" }
+        XCTAssertEqual(pairs.count, Set(pairs).count,
+                       "пара «потребность-приход» встречается не больше одного раза")
+    }
 }

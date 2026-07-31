@@ -145,9 +145,22 @@ public struct Plan: Codable, Sendable {
     /// Собрано по статье из подтверждённых раскладок (взносы не возвращаются, П12, С4а).
     public func collected(articleId: String) -> Double {
         confirmed.flatMap(\.contributions)
-            .filter { $0.needId == articleId || $0.needId.hasPrefix(articleId + "@") }
+            .filter { $0.articleId == articleId }
             .reduce(0) { $0 + $1.amount }
     }
+
+    /// Статья потребности: id потребности — «статья» либо «статья@суффикс».
+    public static func articleId(of needId: String) -> String {
+        needId.split(separator: "@").first.map(String.init) ?? needId
+    }
+}
+
+extension Contribution {
+    /// Статья взноса: потребности статьи различаются суффиксом за «@» — помесячный
+    /// срок (С3), приход замысла или фонда (С5, С7), доля окна лишней финнедели (С10).
+    /// Балансировка вправе раздать их по приходам врозь (LIFO, П6б), но статья
+    /// у прихода одна: строки раскладки складываются по этому ключу.
+    public var articleId: String { Plan.articleId(of: needId) }
 }
 
 /// Приход горизонта.

@@ -56,14 +56,19 @@ final class AppModel {
         NotificationManager.reschedule(self)
     }
 
-    /// Строка недельных денег сменила ключ чек-листа ("everyday" → "weekly") вместе
-    /// с переименованием термина. Отметки исполнения — память человека (С12, П3),
-    /// и терять её из-за правки слова нельзя: старые раскладки читаются по-новому.
+    /// Ключи чек-листа менялись: "everyday" → "weekly" (переименование термина),
+    /// потребность → статья (статья в раскладке — одна строка; ключ лишней недели
+    /// своего спринта остаётся с датой). Отметки исполнения — память человека
+    /// (С12, П3), и терять её из-за правок нельзя: старые раскладки читаются по-новому.
     private static func renamedChecklistKeys(_ plan: Plan) -> Plan {
         var plan = plan
-        for i in plan.confirmed.indices where plan.confirmed[i].executed.contains("everyday") {
-            plan.confirmed[i].executed.remove("everyday")
-            plan.confirmed[i].executed.insert("weekly")
+        for i in plan.confirmed.indices {
+            let ownExtra = plan.confirmed[i].sprintStart.map { "extra@\($0)" }
+            plan.confirmed[i].executed = Set(plan.confirmed[i].executed.map { key in
+                if key == "everyday" { return "weekly" }
+                if key == ownExtra { return key }
+                return Plan.articleId(of: key)
+            })
         }
         return plan
     }
@@ -284,15 +289,15 @@ final class AppModel {
         return frozen + planned
     }
 
-    func articleName(for needId: String) -> String {
-        if needId.hasPrefix("extra@") { return "дополнительная неделя" }
-        let articleId = needId.split(separator: "@").first.map(String.init) ?? needId
+    func articleName(for key: String) -> String {
+        let articleId = Plan.articleId(of: key)
+        if articleId == "extra" { return "дополнительная неделя" }
         return plan.articles.first { $0.id == articleId }?.name ?? articleId
     }
 
-    func needOrder(for needId: String) -> Int {
-        if needId.hasPrefix("extra@") { return 2 }
-        let articleId = needId.split(separator: "@").first.map(String.init) ?? needId
+    func needOrder(for key: String) -> Int {
+        let articleId = Plan.articleId(of: key)
+        if articleId == "extra" { return 2 }
         guard let a = plan.articles.first(where: { $0.id == articleId }) else { return 3 }
         switch a.kind {
         case .payment: return 0

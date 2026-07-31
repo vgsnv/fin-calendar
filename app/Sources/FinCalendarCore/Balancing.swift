@@ -132,13 +132,25 @@ public struct Balancer: Sendable {
 
         level(slots: slots, incomes: incomes, funded: &funded, remaining: &remaining)
 
+        // Пара «потребность-приход» — один взнос: несколько слотов делят один id
+        // (дополнительная неделя, С10), и ровность (П6б) может сложить их доли
+        // на один приход — доли складываются, а не живут отдельными записями.
+        struct Pair: Hashable { let needId: String; let incomeId: String }
         let order = Dictionary(uniqueKeysWithValues: byDate.enumerated().map { ($1.id, $0) })
         var contributions: [Contribution] = []
+        var at: [Pair: Int] = [:]
         for (i, slot) in slots.enumerated() {
             guard let needId = slot.needId else { continue }
             for (incomeId, amount) in funded[i].sorted(by: { order[$0.key]! < order[$1.key]! })
             where amount > 1e-9 {
-                contributions.append(Contribution(needId: needId, incomeId: incomeId, amount: amount))
+                let pair = Pair(needId: needId, incomeId: incomeId)
+                if let j = at[pair] {
+                    contributions[j] = Contribution(needId: needId, incomeId: incomeId,
+                                                    amount: contributions[j].amount + amount)
+                } else {
+                    at[pair] = contributions.count
+                    contributions.append(Contribution(needId: needId, incomeId: incomeId, amount: amount))
+                }
             }
         }
 

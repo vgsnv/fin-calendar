@@ -161,12 +161,15 @@ private struct DraftView: View {
         // Статья лишней финнедели этого же спринта — отдельной строкой ниже:
         // её собирали приходы окна, а не этот приход (С9).
         let ownExtra = "extra@\(occurrence.sprintStart)"
-        var byNeed: [String: Double] = [:]
+        // Строка — статья, не потребность: балансировка вправе раздать статью
+        // несколькими взносами (помесячные сроки, доли окна, перенос ровностью
+        // П6б) — статья не задваивается, взносы складываются.
+        var byArticle: [String: Double] = [:]
         for c in rec.contributions where c.incomeId == occurrence.id && c.needId != ownExtra {
-            byNeed[c.needId, default: 0] += c.amount
+            byArticle[c.articleId, default: 0] += c.amount
         }
-        var rows: [Row] = byNeed.map { needId, amount in
-            Row(id: needId, name: model.articleName(for: needId), note: nil, amount: amount)
+        var rows: [Row] = byArticle.map { articleId, amount in
+            Row(id: articleId, name: model.articleName(for: articleId), note: nil, amount: amount)
         }
         .sorted { (model.needOrder(for: $0.id), $0.name) < (model.needOrder(for: $1.id), $1.name) }
 
@@ -216,12 +219,14 @@ private struct ChecklistView: View {
 
     private var rows: [(key: String, name: String, note: String?, amount: Double)] {
         let ownExtra = "extra@\(occurrence.sprintStart)"
-        var byNeed: [String: Double] = [:]
+        // Строка чек-листа — статья: перевод по статье один, сколькими бы
+        // потребностями балансировка её ни раздала (см. draftRows).
+        var byArticle: [String: Double] = [:]
         for c in layout.contributions where c.needId != ownExtra {
-            byNeed[c.needId, default: 0] += c.amount
+            byArticle[c.articleId, default: 0] += c.amount
         }
-        var result = byNeed.map { needId, amount in
-            (key: needId, name: model.articleName(for: needId), note: String?.none, amount: amount)
+        var result = byArticle.map { articleId, amount in
+            (key: articleId, name: model.articleName(for: articleId), note: String?.none, amount: amount)
         }
         .sorted { (model.needOrder(for: $0.key), $0.name) < (model.needOrder(for: $1.key), $1.name) }
 

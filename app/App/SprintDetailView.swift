@@ -76,9 +76,8 @@ struct SprintDetailView: View {
         occurrence.sprintStart.adding(days: occurrence.sprintWeeks * 7 - 1) < model.today
     }
 
-    private func article(for needId: String) -> Article? {
-        let articleId = needId.split(separator: "@").first.map(String.init) ?? needId
-        return model.plan.articles.first { $0.id == articleId }
+    private func article(for key: String) -> Article? {
+        model.plan.articles.first { $0.id == Plan.articleId(of: key) }
     }
 
     // MARK: Заголовок
@@ -133,7 +132,9 @@ struct SprintDetailView: View {
     /// Строки карточки: застывшая раскладка (П12) либо живая рекомендация (П11);
     /// последней строкой — недельные деньги спринта.
     private func contributionRows(_ confirmed: ConfirmedLayout?) -> [Row] {
-        var byNeed: [String: Double] = [:]
+        // Строка — статья, не потребность: взносы статьи складываются,
+        // сколькими бы потребностями балансировка её ни раздала (П6б, layout.md).
+        var byArticle: [String: Double] = [:]
         let weeklyCount: Int
         let weeklyTotal: Double
 
@@ -142,14 +143,14 @@ struct SprintDetailView: View {
 
         if let confirmed {
             for c in confirmed.contributions where c.needId != ownExtra {
-                byNeed[c.needId, default: 0] += c.amount
+                byArticle[c.articleId, default: 0] += c.amount
             }
             weeklyCount = confirmed.weekAmounts.count
             weeklyTotal = confirmed.weekAmounts.reduce(0) { $0 + $1.amount }
         } else {
             let rec = model.horizon.recommendation
             for c in rec.contributions where c.incomeId == occurrence.id && c.needId != ownExtra {
-                byNeed[c.needId, default: 0] += c.amount
+                byArticle[c.articleId, default: 0] += c.amount
             }
             let starts = (0..<occurrence.sprintWeeks).map { occurrence.sprintStart.adding(days: $0 * 7) }
             let weekly = rec.weeks.filter { starts.contains($0.start) }
@@ -157,8 +158,8 @@ struct SprintDetailView: View {
             weeklyTotal = weekly.reduce(0) { $0 + $1.amount }
         }
 
-        var rows = byNeed.map { needId, amount in
-            Row(id: needId, name: model.articleName(for: needId), note: nil, amount: amount)
+        var rows = byArticle.map { articleId, amount in
+            Row(id: articleId, name: model.articleName(for: articleId), note: nil, amount: amount)
         }
         .sorted { (model.needOrder(for: $0.id), $0.name) < (model.needOrder(for: $1.id), $1.name) }
 
