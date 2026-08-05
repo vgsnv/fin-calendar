@@ -75,20 +75,18 @@ struct OnboardingView: View {
 
     private var header: some View {
         ZStack {
-            Text("шаг \(step) из 3")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(Theme.textMuted)
+            Cap("шаг \(step) из 3")
             if step > 1 {
                 HStack {
                     Button {
-                        withAnimation(.easeInOut(duration: 0.2)) { step -= 1 }
+                        withAnimation(Theme.ease(0.24)) { step -= 1 }
                     } label: {
-                        HStack(spacing: 3) {
+                        HStack(spacing: 4) {
                             Image(systemName: "chevron.left")
                                 .font(.system(size: 12, weight: .semibold))
-                            Text("назад").font(.system(size: 15))
+                            Text("назад").font(.sans(15))
                         }
-                        .foregroundStyle(Theme.textMuted)
+                        .foregroundStyle(Theme.text2)
                         .padding(.trailing, 12)
                         .tapPadded(visualHeight: 20)
                     }
@@ -101,14 +99,10 @@ struct OnboardingView: View {
     private var footer: some View {
         Button(action: advance) {
             Text(step == 3 ? "Посчитать" : "Дальше")
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(Capsule().fill(Theme.accent))
         }
+        .buttonStyle(.caliper(.primary))
         .disabled(advanceDisabled)
-        .opacity(advanceDisabled ? 0.4 : 1)
     }
 
     private var advanceDisabled: Bool {
@@ -146,22 +140,19 @@ struct OnboardingView: View {
             }
             if duplicateDays {
                 Text("Приходы в одно число месяца сетка не различает — поставьте разные числа.")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Theme.textMuted)
+                    .font(.sans(13))
+                    .foregroundStyle(Theme.text3)
             }
             // Кнопка видна всегда — отказ третьему приходу честный, не молчаливый (К5).
             Button(action: addIncome) {
                 Text("+ приход")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(Theme.accent)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(Capsule().strokeBorder(Theme.accent, lineWidth: 1))
             }
+            .buttonStyle(.caliper(.secondary))
             if thirdIncomeNote {
                 Text("С тремя и более приходами сетка от дат не строится — таким приходам нужен общий календарь, он появится в следующей версии.")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Theme.textMuted)
+                    .font(.sans(13))
+                    .foregroundStyle(Theme.text3)
             }
         }
     }
@@ -214,34 +205,34 @@ struct OnboardingView: View {
                 .padding(.top, 20)
             if articles.isEmpty {
                 Text("Можно пропустить: план без статей тоже считается.")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Theme.textFaint)
+                    .font(.sans(13))
+                    .foregroundStyle(Theme.text3)
                     .padding(.horizontal, 20)
                     .padding(.top, 8)
             }
             List {
                 ForEach(articles, id: \.id) { article in
                     Button { editingArticle = article } label: { articleRow(article) }
-                        .listRowBackground(Theme.surface)
-                        .listRowSeparatorTint(Theme.line)
+                        .listRowBackground(Theme.surfaceRaised)
+                        .listRowSeparatorTint(Theme.lineSoft)
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                             Button {
                                 articles.removeAll { $0.id == article.id }
                             } label: {
                                 Label("Убрать", systemImage: "xmark")
                             }
-                            .tint(Theme.textMuted)
+                            .tint(Theme.text3)
                         }
                 }
                 Button { showArticleForm = true } label: {
                     Text("+ статья")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(Theme.accent)
+                        .font(.sans(15, .medium))
+                        .foregroundStyle(Theme.text)
                         .tapRow()
                 }
                 .buttonStyle(.plain)
-                .listRowBackground(Theme.surface)
-                .listRowSeparatorTint(Theme.line)
+                .listRowBackground(Theme.surfaceRaised)
+                .listRowSeparatorTint(Theme.lineSoft)
             }
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
@@ -250,18 +241,18 @@ struct OnboardingView: View {
 
     private func articleRow(_ article: Article) -> some View {
         HStack(spacing: 8) {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(article.name)
-                    .font(.system(size: 15))
+                    .font(.sans(16))
                     .foregroundStyle(Theme.text)
                 Text(articleNote(article))
-                    .font(.system(size: 12))
-                    .foregroundStyle(Theme.textMuted)
+                    .font(.mono(12))
+                    .foregroundStyle(Theme.text3)
             }
             Spacer()
             Image(systemName: "chevron.right")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Theme.textFaint)
+                .foregroundStyle(Theme.iconMuted)
         }
         .padding(.vertical, 2)
         .tapRow()
@@ -293,55 +284,49 @@ struct OnboardingView: View {
         return VStack(alignment: .leading, spacing: 12) {
             titleBlock("Сколько стоит неделя вашей жизни?")
 
-            VStack(spacing: 4) {
+            // Крупный readout Caliper: гротеск с табличными цифрами, капс-подпись.
+            VStack(spacing: 6) {
                 TextField("0", text: $weekText)
                     .keyboardType(.numberPad)
                     .multilineTextAlignment(.center)
-                    .font(.system(size: 34, weight: .semibold))
+                    .font(.sans(34, .semibold))
+                    .monospacedDigit()
                     .foregroundStyle(Theme.text)
                     .focused($weekFocused)
-                Text("в неделю")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Theme.textMuted)
+                Cap("в неделю")
             }
-            .padding(.vertical, 18)
+            .padding(.vertical, 20)
             .frame(maxWidth: .infinity)
-            .background(RoundedRectangle(cornerRadius: 16).fill(Theme.surface)
-                .strokeBorder(Theme.line, lineWidth: 1))
+            .caliperCard()
             // Тап по любому месту карточки открывает клавиатуру.
             .tapFocuses($weekFocused)
 
-            // Живая проверка: молчаливого урезания не существует (МП20).
+            // Живая проверка: молчаливого урезания не существует (МП20);
+            // «не помещается» — критичное, signal.
             if week > 0 {
                 Text(fits
-                     ? "Помещается. Потолок — около \(RU.money(ceiling)) в неделю."
-                     : "Не помещается: потолок — около \(RU.money(ceiling)).")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(fits ? Theme.accent : Theme.textMuted)
+                     ? "помещается · потолок около \(RU.money(ceiling)) в неделю"
+                     : "не помещается · потолок около \(RU.money(ceiling))")
+                    .font(.mono(12, medium: true))
+                    .foregroundStyle(fits ? Theme.text2 : Theme.signal)
             }
             Button {
                 weekText = RU.money(ceiling)
             } label: {
                 Text("посчитать за меня")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Theme.accent)
+                    .font(.sans(13, .semibold))
+                    .foregroundStyle(Theme.text2)
                     .tapPadded(visualHeight: 16)
             }
+            .buttonStyle(.plain)
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("неделя начинается с")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Theme.textMuted)
-                Picker("граница недели", selection: $weekBoundary) {
-                    ForEach(1...7, id: \.self) { d in
-                        Text(RU.days[d - 1]).tag(d)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+                Cap("неделя начинается с")
+                CaliperSegmented(selection: $weekBoundary,
+                                 options: (1...7).map { ($0, RU.days[$0 - 1]) })
                 Text("неделя начнётся с дорогих выходных при полной порции")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Theme.textMuted)
+                    .font(.sans(12))
+                    .foregroundStyle(Theme.text3)
             }
             .padding(.top, 8)
         }
@@ -372,28 +357,27 @@ struct OnboardingView: View {
         VStack(alignment: .leading, spacing: 24) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Посчитано.")
-                    .font(.system(size: 28, weight: .semibold))
+                    .font(.sans(28, .semibold))
+                    .tracking(-0.28)
                     .foregroundStyle(Theme.text)
                 if let d = nearestIncomeDate() {
                     Text("Ближайший приход — \(d.day) \(RU.monthsGen[d.month - 1]): с него начнётся первый спринт.")
-                        .font(.system(size: 15))
-                        .foregroundStyle(Theme.text)
+                        .font(.sans(16))
+                        .foregroundStyle(Theme.text2)
                 }
                 Text("Неделя: \(RU.money(parsedWeek)) ₽.")
-                    .font(.system(size: 15))
-                    .foregroundStyle(Theme.text)
+                    .font(.sans(16))
+                    .monospacedDigit()
+                    .foregroundStyle(Theme.text2)
             }
             Button {
                 model.completeOnboarding(incomes: builtIncomes(), articles: articles,
                                          weekPortion: parsedWeek, weekBoundary: weekBoundary)
             } label: {
                 Text("Открыть план")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(Capsule().fill(Theme.accent))
             }
+            .buttonStyle(.caliper(.primary))
         }
         .padding(24)
     }
@@ -418,12 +402,13 @@ struct OnboardingView: View {
     private func titleBlock(_ title: String, _ caption: String? = nil) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
-                .font(.system(size: 22, weight: .semibold))
+                .font(.sans(22, .semibold))
+                .tracking(-0.22)
                 .foregroundStyle(Theme.text)
             if let caption {
                 Text(caption)
-                    .font(.system(size: 13))
-                    .foregroundStyle(Theme.textMuted)
+                    .font(.sans(13))
+                    .foregroundStyle(Theme.text3)
             }
         }
         .padding(.bottom, 4)
@@ -466,7 +451,7 @@ private struct EntryIncomeCard: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 TextField(placeholder, text: $row.name)
-                    .font(.system(size: 15, weight: .medium))
+                    .font(.sans(16, .medium))
                     .foregroundStyle(Theme.text)
                     .focused($focus, equals: .name)
                     .tapFocuses($focus, equals: .name)
@@ -474,28 +459,28 @@ private struct EntryIncomeCard: View {
                     Button(action: onDelete) {
                         Image(systemName: "xmark")
                             .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(Theme.textMuted)
+                            .foregroundStyle(Theme.iconMuted)
                             .tapTarget()
                     }
                 }
             }
-            Divider().overlay(Theme.line)
+            Divider().overlay(Theme.lineSoft)
             HStack {
                 Text("число месяца")
-                    .font(.system(size: 15))
-                    .foregroundStyle(Theme.textMuted)
+                    .font(.sans(15))
+                    .foregroundStyle(Theme.text3)
                 Spacer()
                 DayGridButton(day: $row.day)   // 1–28, СВ1
             }
             HStack {
                 Text("сумма")
-                    .font(.system(size: 15))
-                    .foregroundStyle(Theme.textMuted)
+                    .font(.sans(15))
+                    .foregroundStyle(Theme.text3)
                     .fixedSize()
                 TextField("0", text: $row.amountText)
                     .keyboardType(.numberPad)
                     .multilineTextAlignment(.trailing)
-                    .font(.system(size: 17, weight: .semibold))
+                    .font(.mono(17, medium: true))
                     .foregroundStyle(Theme.text)
                     .focused($focus, equals: .amount)
                     .frame(maxWidth: .infinity)
@@ -504,16 +489,16 @@ private struct EntryIncomeCard: View {
             .tapFocuses($focus, equals: .amount)
             // Раскрывашка на Button: DisclosureGroup глотает первый тап при фокусе в поле.
             Button {
-                withAnimation(.easeInOut(duration: 0.15)) { row.ruleOpen.toggle() }
+                withAnimation(Theme.ease()) { row.ruleOpen.toggle() }
             } label: {
                 HStack {
                     Text("если выпадает на выходной")
-                        .font(.system(size: 13))
-                        .foregroundStyle(Theme.textMuted)
+                        .font(.sans(13))
+                        .foregroundStyle(Theme.text3)
                     Spacer()
                     Image(systemName: "chevron.down")
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Theme.textFaint)
+                        .foregroundStyle(Theme.iconMuted)
                         .rotationEffect(.degrees(row.ruleOpen ? 180 : 0))
                 }
                 .tapRow(minHeight: 36)
@@ -527,9 +512,8 @@ private struct EntryIncomeCard: View {
                 }
             }
         }
-        .padding(14)
-        .background(RoundedRectangle(cornerRadius: 16).fill(Theme.surface)
-            .strokeBorder(Theme.line, lineWidth: 1))
+        .padding(16)
+        .caliperCard()
     }
 
     /// Вариант правила переноса — строка-кнопка с точкой выбора.
@@ -539,11 +523,12 @@ private struct EntryIncomeCard: View {
         } label: {
             HStack(spacing: 8) {
                 Circle()
-                    .strokeBorder(row.rule == rule ? Theme.accent : Theme.line, lineWidth: 1.5)
-                    .background(Circle().fill(row.rule == rule ? Theme.accent : .clear).padding(4))
+                    .strokeBorder(row.rule == rule ? Theme.fill : Theme.lineStrong,
+                                  lineWidth: 1.5)
+                    .background(Circle().fill(row.rule == rule ? Theme.fill : .clear).padding(4))
                     .frame(width: 18, height: 18)
                 Text(title)
-                    .font(.system(size: 14))
+                    .font(.sans(14))
                     .foregroundStyle(Theme.text)
                 Spacer()
             }
@@ -564,23 +549,22 @@ private struct EntryComputingView: View {
             ForEach(0..<7, id: \.self) { i in
                 HStack(spacing: 8) {
                     Circle()
-                        .fill(i % 4 == 0 ? Theme.accent : Color.clear)
+                        .fill(i % 4 == 0 ? Theme.text : Color.clear)
                         .frame(width: 5, height: 5)
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(i % 4 == 0 ? Theme.accentSoft : Theme.surface)
-                        .strokeBorder(Theme.line, lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Theme.surfaceRaised)
+                        .strokeBorder(i % 4 == 0 ? Theme.lineStrong : Theme.line,
+                                      lineWidth: 1)
                         .frame(height: 36)
                 }
                 .opacity(appeared ? 1 : 0)
                 .scaleEffect(appeared ? 1 : 0.94)
-                .animation(.easeOut(duration: 0.4).delay(Double(i) * 0.13), value: appeared)
+                .animation(Theme.ease(0.4).delay(Double(i) * 0.13), value: appeared)
             }
-            Text("лента строится")
-                .font(.system(size: 12))
-                .foregroundStyle(Theme.textMuted)
+            Cap("лента строится")
                 .padding(.top, 8)
                 .opacity(appeared ? 1 : 0)
-                .animation(.easeOut(duration: 0.4).delay(0.3), value: appeared)
+                .animation(Theme.ease(0.4).delay(0.3), value: appeared)
         }
         .padding(32)
         .onAppear { appeared = true }

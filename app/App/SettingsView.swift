@@ -34,6 +34,7 @@ struct SettingsView: View {
             .padding(.bottom, 24)
         }
         .background(Theme.bg)
+        .presentationCornerRadius(22)
         .onAppear {
             incomeDrafts = model.plan.incomes.map(IncomeDraft.init)
         }
@@ -54,50 +55,46 @@ struct SettingsView: View {
     private var header: some View {
         HStack {
             Text("Настройки")
-                .font(.system(size: 20, weight: .semibold))
+                .font(.sans(22, .semibold))
+                .tracking(-0.22)
                 .foregroundStyle(Theme.text)
             Spacer()
             Button { dismiss() } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(Theme.textMuted)
+                    .foregroundStyle(Theme.icon)
                     .tapTarget()
             }
         }
         .padding(.bottom, 4)
     }
 
+    /// Заголовок секции — капс-подпись Caliper (section-cap).
     private func sectionTitle(_ title: String) -> some View {
-        Text(title)
-            .font(.system(size: 13, weight: .medium))
-            .foregroundStyle(Theme.textMuted)
-            .padding(.top, 10)
+        Cap(title)
+            .padding(.top, 14)
             .padding(.horizontal, 4)
     }
 
     private func card<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 0) { content() }
-            .background(RoundedRectangle(cornerRadius: 16).fill(Theme.surface)
-                .strokeBorder(Theme.line, lineWidth: 1))
+            .caliperCard()
     }
 
     private func primaryButton(_ title: String, disabled: Bool,
                                action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .background(Capsule().fill(disabled ? Theme.textFaint : Theme.accent))
         }
+        .buttonStyle(.caliper(.primary))
         .disabled(disabled)
     }
 
     private func footnote(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 12))
-            .foregroundStyle(Theme.textMuted)
+            .font(.sans(12))
+            .foregroundStyle(Theme.text3)
     }
 
     // MARK: Приходы (П5, П11, К5)
@@ -124,7 +121,7 @@ struct SettingsView: View {
                     IncomeEditor(draft: $draft,
                                  removable: incomeDrafts.count > 1,
                                  remove: { removeIncome(draft.id) })
-                    Divider().overlay(Theme.line)
+                    Divider().overlay(Theme.lineSoft)
                 }
                 addIncomeRow
             }
@@ -150,9 +147,9 @@ struct SettingsView: View {
                     Image(systemName: "plus")
                         .font(.system(size: 13, weight: .semibold))
                     Text("Добавить приход")
-                        .font(.system(size: 15, weight: .medium))
+                        .font(.sans(15, .medium))
                 }
-                .foregroundStyle(Theme.accent)
+                .foregroundStyle(Theme.text)
                 .tapRow()
             }
             .buttonStyle(.plain)
@@ -191,16 +188,16 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     Text("день границы")
-                        .font(.system(size: 15))
-                        .foregroundStyle(Theme.textMuted)
+                        .font(.sans(15))
+                        .foregroundStyle(Theme.text3)
                     Spacer()
                     Text(weekdayFullNames[model.plan.weekBoundary - 1])
-                        .font(.system(size: 15, weight: .medium))
+                        .font(.sans(16, .medium))
                         .foregroundStyle(Theme.text)
                 }
                 footnote("смена границы — перезапуск системы; появится в следующей версии")
             }
-            .padding(14)
+            .padding(16)
         }
     }
 
@@ -209,10 +206,10 @@ struct SettingsView: View {
     private var productionCard: some View {
         card {
             Text("встроенный справочник · появится в следующей версии")
-                .font(.system(size: 15))
-                .foregroundStyle(Theme.textFaint)
+                .font(.sans(15))
+                .foregroundStyle(Theme.textDisabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(14)
+                .padding(16)
         }
     }
 
@@ -224,7 +221,7 @@ struct SettingsView: View {
                       isOn: Binding(
                         get: { model.plan.notifyLayout },
                         set: { model.setNotifications(layout: $0, issue: model.plan.notifyIssue) }))
-            Divider().overlay(Theme.line)
+            Divider().overlay(Theme.lineSoft)
             toggleRow("выдача", note: "началась финнеделя — пора выдать порцию",
                       isOn: Binding(
                         get: { model.plan.notifyIssue },
@@ -234,17 +231,17 @@ struct SettingsView: View {
 
     private func toggleRow(_ title: String, note: String, isOn: Binding<Bool>) -> some View {
         SwitchRow(isOn: isOn) {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.system(size: 15))
+                    .font(.sans(16))
                     .foregroundStyle(Theme.text)
                 Text(note)
-                    .font(.system(size: 12))
-                    .foregroundStyle(Theme.textMuted)
+                    .font(.mono(12))
+                    .foregroundStyle(Theme.text3)
             }
         }
         .padding(.vertical, 11)
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 16)
     }
 
     // MARK: Начать заново — единственная деструктивная операция
@@ -252,16 +249,17 @@ struct SettingsView: View {
     private var eraseCard: some View {
         card {
             Button { showEraseDialog = true } label: {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 3) {
+                    // Деструктивное действие — signal (единственный в настройках).
                     Text("Начать заново")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(Theme.text)
+                        .font(.sans(16, .medium))
+                        .foregroundStyle(Theme.signal)
                     Text("полное стирание локальных данных")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Theme.textMuted)
+                        .font(.mono(12))
+                        .foregroundStyle(Theme.text3)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(14)
+                .padding(16)
             }
         }
     }
@@ -316,38 +314,38 @@ private struct IncomeEditor: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 TextField("имя прихода", text: $draft.name)
-                    .font(.system(size: 15, weight: .medium))
+                    .font(.sans(16, .medium))
                     .foregroundStyle(Theme.text)
                 if removable {
                     Button(action: remove) {
                         Image(systemName: "minus.circle")
                             .font(.system(size: 17))
-                            .foregroundStyle(Theme.textMuted)
+                            .foregroundStyle(Theme.iconMuted)
                             .tapTarget()
                     }
                 }
             }
             HStack(spacing: 10) {
                 Text("число месяца")
-                    .font(.system(size: 15))
-                    .foregroundStyle(Theme.textMuted)
+                    .font(.sans(15))
+                    .foregroundStyle(Theme.text3)
                 Spacer()
                 DayGridButton(day: $draft.day, suffix: "-го")
             }
             HStack {
                 Text("ожидаемая сумма")
-                    .font(.system(size: 15))
-                    .foregroundStyle(Theme.textMuted)
+                    .font(.sans(15))
+                    .foregroundStyle(Theme.text3)
                     .fixedSize()
                 TextField("0", text: $draft.amountText)
                     .keyboardType(.numberPad)
                     .multilineTextAlignment(.trailing)
-                    .font(.system(size: 15, weight: .medium))
+                    .font(.mono(15, medium: true))
                     .foregroundStyle(Theme.text)
                     .frame(maxWidth: .infinity)
             }
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 16)
         .padding(.vertical, 12)
     }
 }

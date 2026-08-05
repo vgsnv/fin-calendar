@@ -15,10 +15,12 @@
 		73507590007DA8F646E14617 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9A1CFD5781F40A6FB88C128 /* SettingsView.swift */; };
 		7BAFC83E4F560015649E67E9 /* TapeModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20473528042FD456CB02472E /* TapeModel.swift */; };
 		87AA54C42A166DE957879A61 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0424EC9D685DE1D61364C0 /* NotificationManager.swift */; };
+		A4EBBCA876C59A7B9B111D30 /* JetBrainsMono-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F52D63B75F2A14A30387FB1D /* JetBrainsMono-Regular.ttf */; };
 		C7DFF19E1626134F767366CE /* SprintDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 492DF083AC1E580A99A28AA8 /* SprintDetailView.swift */; };
 		EAAE128C1A3C0985EEB24A3E /* LayoutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F42B0451B4D298F43EE03A5D /* LayoutView.swift */; };
 		EBD029C452AA3874A2D1D812 /* IzvestnoeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C8CB785502A4DA599158914 /* IzvestnoeApp.swift */; };
 		F5A8EEB8A70C892CE79CF03A /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25E6E77B296A32EF999ADC75 /* AppModel.swift */; };
+		FF2EB98956C07F2EC83A784B /* JetBrainsMono-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = C50BC2FC4E1B49D6C979FA38 /* JetBrainsMono-Medium.ttf */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -32,8 +34,10 @@
 		8C8CB785502A4DA599158914 /* IzvestnoeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IzvestnoeApp.swift; sourceTree = "<group>"; };
 		9816AEF1F2403624958493F4 /* TapeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TapeView.swift; sourceTree = "<group>"; };
 		B9A1CFD5781F40A6FB88C128 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		C50BC2FC4E1B49D6C979FA38 /* JetBrainsMono-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "JetBrainsMono-Medium.ttf"; sourceTree = "<group>"; };
 		DFD86DC01D2C104BC10AA8AD /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		F42B0451B4D298F43EE03A5D /* LayoutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutView.swift; sourceTree = "<group>"; };
+		F52D63B75F2A14A30387FB1D /* JetBrainsMono-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "JetBrainsMono-Regular.ttf"; sourceTree = "<group>"; };
 		FAE42F738AAD7490BCA3B724 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -71,6 +75,7 @@
 				20473528042FD456CB02472E /* TapeModel.swift */,
 				9816AEF1F2403624958493F4 /* TapeView.swift */,
 				FAE42F738AAD7490BCA3B724 /* Theme.swift */,
+				B759248DB89DC0C7388EEACE /* Fonts */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -81,6 +86,15 @@
 				708DD535F155097504F38786 /* IzvestnoeBuduschee.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		B759248DB89DC0C7388EEACE /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				C50BC2FC4E1B49D6C979FA38 /* JetBrainsMono-Medium.ttf */,
+				F52D63B75F2A14A30387FB1D /* JetBrainsMono-Regular.ttf */,
+			);
+			path = Fonts;
 			sourceTree = "<group>";
 		};
 		C9F251FC283F450B4D782A1B = {
@@ -100,6 +114,7 @@
 			buildConfigurationList = 894806F8AB8C1BD6BA156591 /* Build configuration list for PBXNativeTarget "IzvestnoeBuduschee" */;
 			buildPhases = (
 				5F6D5EC329B021BB73685F6A /* Sources */,
+				E772E76D4D710E64363ACBE1 /* Resources */,
 				F02CF57A911965F22AE5915C /* Frameworks */,
 			);
 			buildRules = (
@@ -150,6 +165,18 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		E772E76D4D710E64363ACBE1 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FF2EB98956C07F2EC83A784B /* JetBrainsMono-Medium.ttf in Resources */,
+				A4EBBCA876C59A7B9B111D30 /* JetBrainsMono-Regular.ttf in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		5F6D5EC329B021BB73685F6A /* Sources */ = {

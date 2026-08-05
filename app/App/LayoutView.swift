@@ -51,25 +51,28 @@ private struct DraftView: View {
                 VStack(spacing: 0) {
                     ForEach(rows) { row in
                         LayoutRow(name: row.name, note: row.note, amount: row.amount)
-                        if row.id != rows.last?.id { Divider().overlay(Theme.line) }
+                        if row.id != rows.last?.id { Divider().overlay(Theme.lineSoft) }
                     }
                 }
-                .background(RoundedRectangle(cornerRadius: 16).fill(Theme.surface)
-                    .strokeBorder(Theme.line, lineWidth: 1))
+                .caliperCard()
 
                 if free > 0.5 {
+                    // Свободные деньги — тёмная «инструментальная» панель.
                     Button { showSurplus = true } label: {
-                        HStack {
-                            Text("свободные деньги · \(RU.money(free))")
-                                .font(.system(size: 15, weight: .medium))
-                                .foregroundStyle(Theme.accent)
+                        HStack(spacing: 8) {
+                            Text("свободные деньги")
+                                .font(.sans(14, .medium))
+                                .foregroundStyle(Theme.inkFg)
                             Spacer()
+                            Text(RU.money(free))
+                                .font(.mono(14, medium: true))
+                                .foregroundStyle(Theme.inkFg)
                             Image(systemName: "chevron.right")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(Theme.accent)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Theme.inkMuted)
                         }
-                        .padding(14)
-                        .background(RoundedRectangle(cornerRadius: 12).fill(Theme.accentSoft))
+                        .padding(16)
+                        .inkPanel()
                     }
                 }
 
@@ -77,8 +80,8 @@ private struct DraftView: View {
 
                 if isTemplate {
                     Text("Это шаблон: суммы пересчитаются от факта. Подтвердить раскладку можно в день прихода — \(occurrence.factDate.day) \(RU.monthsGen[occurrence.factDate.month - 1]).")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Theme.textMuted)
+                        .font(.sans(13))
+                        .foregroundStyle(Theme.text3)
                         .padding(.top, 4)
                 } else {
                     Button {
@@ -86,12 +89,9 @@ private struct DraftView: View {
                                             recommendation: rec)
                     } label: {
                         Text("Подтвердить раскладку")
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(.white)
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(Capsule().fill(Theme.accent))
                     }
+                    .buttonStyle(.caliper(.primary))
                     .padding(.top, 4)
                 }
             }
@@ -103,51 +103,53 @@ private struct DraftView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 3) {
             HStack {
-                Text("Раскладка").font(.system(size: 20, weight: .semibold))
+                Text("Раскладка")
+                    .font(.sans(22, .semibold))
+                    .tracking(-0.22)
                     .foregroundStyle(Theme.text)
                 Spacer()
                 Button { dismiss() } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(Theme.textMuted)
+                        .foregroundStyle(Theme.icon)
                         .tapTarget()
                 }
             }
             Text("\(model.incomeName(anchorDay: occurrence.anchorDay)) · \(occurrence.factDate.day) \(RU.monthsGen[occurrence.factDate.month - 1]) · \(isTemplate ? "шаблон" : "черновик")")
-                .font(.system(size: 12)).foregroundStyle(Theme.textMuted)
+                .font(.mono(12)).foregroundStyle(Theme.text3)
         }
     }
 
-    /// Шаблон: суммы плановые, факт появится в день прихода.
+    /// Шаблон: суммы плановые, факт появится в день прихода. Крупный readout —
+    /// гротеск с табличными цифрами (сигнатура Caliper).
     private var plannedRow: some View {
-        HStack {
-            Text("придёт по плану").font(.system(size: 15)).foregroundStyle(Theme.textMuted)
-            Spacer()
+        VStack(alignment: .leading, spacing: 6) {
+            Cap("придёт по плану")
             Text(RU.money(occurrence.plannedAmount))
-                .font(.system(size: 24, weight: .semibold))
+                .font(.sans(28, .semibold))
+                .monospacedDigit()
+                .tracking(-0.56)
                 .foregroundStyle(Theme.text)
         }
-        .padding(14)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
-            .strokeBorder(Theme.line, lineWidth: 1))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .caliperCard(radius: 12)
     }
 
     private var factField: some View {
-        HStack {
-            Text("пришло").font(.system(size: 15)).foregroundStyle(Theme.textMuted)
-                .fixedSize()
+        VStack(alignment: .leading, spacing: 6) {
+            Cap("пришло")
             TextField("", text: $factText)
                 .keyboardType(.numberPad)
-                .multilineTextAlignment(.trailing)
-                .font(.system(size: 24, weight: .semibold))
+                .font(.sans(28, .semibold))
+                .monospacedDigit()
                 .foregroundStyle(Theme.text)
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(14)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
-            .strokeBorder(Theme.line, lineWidth: 1))
+        .padding(16)
+        .caliperCard(radius: 12)
     }
 
     private struct Row: Identifiable {
@@ -199,8 +201,8 @@ private struct DraftView: View {
         let local = rec.shortfalls.filter { $0.date >= occurrence.sprintStart && $0.date < sprintEnd }
         if let s = local.first {
             Text("план не сходится · к \(s.date.day) \(RU.monthsGen[s.date.month - 1]) не хватает \(RU.money(s.amount))")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(Theme.accent)
+                .font(.mono(12, medium: true))
+                .foregroundStyle(Theme.signal)
         }
     }
 }
@@ -251,17 +253,19 @@ private struct ChecklistView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: 3) {
                         Text("Раскладка · исполнение")
-                            .font(.system(size: 20, weight: .semibold)).foregroundStyle(Theme.text)
+                            .font(.sans(22, .semibold))
+                            .tracking(-0.22)
+                            .foregroundStyle(Theme.text)
                         Text("подтверждена · переводы \(done) из \(rows.count)")
-                            .font(.system(size: 12)).foregroundStyle(Theme.textMuted)
+                            .font(.mono(12)).foregroundStyle(Theme.text3)
                     }
                     Spacer()
                     Button { dismiss() } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(Theme.textMuted)
+                            .foregroundStyle(Theme.icon)
                     }
                 }
 
@@ -276,30 +280,26 @@ private struct ChecklistView: View {
                                       ? "checkmark.circle.fill" : "circle")
                                     .font(.system(size: 20))
                                     .foregroundStyle(layout.executed.contains(row.key)
-                                                     ? Theme.accent : Theme.line)
+                                                     ? Theme.fill : Theme.lineStrong)
                                 LayoutRow(name: row.name, note: row.note, amount: row.amount)
                             }
-                            .padding(.leading, 14)
+                            .padding(.leading, 16)
                             .tapRow()
                         }
                         .buttonStyle(.plain)
-                        if row.key != rows.last?.key { Divider().overlay(Theme.line) }
+                        if row.key != rows.last?.key { Divider().overlay(Theme.lineSoft) }
                     }
                 }
-                .background(RoundedRectangle(cornerRadius: 16).fill(Theme.surface)
-                    .strokeBorder(Theme.line, lineWidth: 1))
+                .caliperCard()
 
                 Button {
                     model.executeAll(incomeId: layout.incomeId, keys: rows.map(\.key))
                     dismiss()
                 } label: {
                     Text("Всё проделано")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(Theme.accent)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(Capsule().strokeBorder(Theme.accent, lineWidth: 1))
                 }
+                .buttonStyle(.caliper(.secondary))
             }
             .padding(20)
         }
@@ -314,18 +314,18 @@ private struct LayoutRow: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(name).font(.system(size: 15)).foregroundStyle(Theme.text)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(name).font(.sans(16)).foregroundStyle(Theme.text)
                 if let note {
-                    Text(note).font(.system(size: 12)).foregroundStyle(Theme.textMuted)
+                    Text(note).font(.mono(12)).foregroundStyle(Theme.text3)
                 }
             }
             Spacer()
             Text(RU.money(amount))
-                .font(.system(size: 15, weight: .medium)).foregroundStyle(Theme.text)
+                .font(.mono(14, medium: true)).foregroundStyle(Theme.text)
         }
-        .padding(.vertical, 11)
-        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .padding(.horizontal, 16)
     }
 }
 
@@ -337,17 +337,21 @@ private struct SurplusSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Свободные деньги · \(RU.money(amount))")
-                .font(.system(size: 15, weight: .medium)).foregroundStyle(Theme.text)
-                .padding(.bottom, 8)
+            HStack(spacing: 8) {
+                Text("Свободные деньги")
+                    .font(.sans(17, .semibold)).foregroundStyle(Theme.text)
+                Text(RU.money(amount))
+                    .font(.mono(14, medium: true)).foregroundStyle(Theme.text2)
+            }
+            .padding(.bottom, 8)
             row("ускорить статью", "появится в следующей версии", disabled: true)
             row("новый замысел или поднять неделю", "появится в следующей версии", disabled: true)
             Button { dismiss() } label: {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 3) {
                     Text("ничего не трогать")
-                        .font(.system(size: 15)).foregroundStyle(Theme.text)
+                        .font(.sans(16)).foregroundStyle(Theme.text)
                     Text("\(RU.money(amount)) выйдут из плана и не вернутся")
-                        .font(.system(size: 12)).foregroundStyle(Theme.textMuted)
+                        .font(.mono(12)).foregroundStyle(Theme.text3)
                 }
                 .padding(.vertical, 14)
                 .tapRow()
@@ -356,14 +360,15 @@ private struct SurplusSheet: View {
         }
         .padding(20)
         .presentationDetents([.height(280)])
-        .presentationBackground(Theme.surface)
+        .presentationBackground(Theme.surfaceRaised)
+        .presentationCornerRadius(22)
     }
 
     private func row(_ title: String, _ note: String, disabled: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title).font(.system(size: 15))
-                .foregroundStyle(disabled ? Theme.textFaint : Theme.text)
-            Text(note).font(.system(size: 12)).foregroundStyle(Theme.textFaint)
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title).font(.sans(16))
+                .foregroundStyle(disabled ? Theme.textDisabled : Theme.text)
+            Text(note).font(.sans(12)).foregroundStyle(Theme.textDisabled)
         }
         .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)

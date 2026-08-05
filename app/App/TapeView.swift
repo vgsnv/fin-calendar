@@ -24,7 +24,7 @@ struct TapeView: View {
                 ScrollView {
                 // Лента длинная (5 лет в каждую сторону, МП23): спринты строятся
                 // по мере подхода, иначе весь горизонт рендерился бы разом.
-                LazyVStack(spacing: 10) {
+                LazyVStack(spacing: 12) {
                     ForEach(tape.sprints) { sprint in
                         SprintCard(sprint: sprint, tape: tape,
                                    openLayout: { layoutTarget = SprintTarget(occurrence: sprint.occurrence) },
@@ -35,7 +35,8 @@ struct TapeView: View {
                             .onDisappear { visibleSprints.remove(sprint.id) }
                     }
                 }
-                .padding(.horizontal, 12)
+                .padding(.horizontal, 16)
+                .padding(.top, 4)
                 .padding(.bottom, 32)
             }
             // Прошлое выше по ленте — стартуем с текущего спринта.
@@ -80,49 +81,56 @@ struct TapeView: View {
         }
     }
 
+    /// Шапка Caliper (app-header): крупный год-readout, под ним капс-подпись,
+    /// справа иконка настроек.
     private func header(_ tape: TapeModel) -> some View {
-        HStack {
-            Text(String(tape.today.year))
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(Theme.textMuted)
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(String(tape.today.year))
+                    .font(.sans(28, .semibold))
+                    .monospacedDigit()
+                    .tracking(-0.28)
+                    .foregroundStyle(Theme.text)
+                Cap("Известное будущее")
+            }
             Spacer()
             Button { showSettings = true } label: {
                 Image(systemName: "gearshape")
-                    .font(.system(size: 17))
-                    .foregroundStyle(Theme.textMuted)
+                    .font(.system(size: 20))
+                    .foregroundStyle(Theme.icon)
                     .tapTarget()
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.top, 8)
+        .padding(.horizontal, 20)
+        .padding(.top, 10)
+        .padding(.bottom, 6)
     }
 }
 
 /// Чип возврата к текущей финнеделе (tape.md): виден только когда текущий спринт
 /// ушёл с экрана. Тише призыва «Разложить» — тот остаётся главным действием
-/// экрана (МП26): контур и бумажный фон, а не залитый акцент.
+/// экрана (МП26): белая капсула с капс-подписью, а не залитый акцент.
 private struct TodayChip: View {
     let isAbove: Bool
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 6) {
+            HStack(spacing: 7) {
                 Image(systemName: isAbove ? "chevron.up" : "chevron.down")
-                    .font(.system(size: 11, weight: .semibold))
-                Text("сегодня")
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(Theme.icon)
+                Cap("сегодня", color: Theme.text)
             }
-            .foregroundStyle(Theme.accent)
             .padding(.horizontal, 16)
-            .padding(.vertical, 10)
+            .frame(height: 38)
             .background(
                 Capsule()
-                    .fill(Theme.surface)
-                    .strokeBorder(Theme.line, lineWidth: 1)
-                    .shadow(color: .black.opacity(0.08), radius: 10, y: 3)
+                    .fill(Theme.surfaceRaised)
+                    .overlay(Capsule().strokeBorder(Theme.lineStrong, lineWidth: 1))
+                    .shadow(color: Theme.shadowTint.opacity(0.16), radius: 14, y: 4)
             )
-            .tapPadded(visualHeight: 36)
+            .tapPadded(visualHeight: 38)
         }
         .buttonStyle(.plain)
         .padding(.bottom, 20)
@@ -146,6 +154,7 @@ private struct DebugDayChip: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
+        // Тёмная «инструментальная» панель; сдвинутое время — живой сигнал.
         HStack(spacing: 0) {
             Button { model.debugShiftDay(by: -1) } label: {
                 Image(systemName: "minus")
@@ -153,19 +162,22 @@ private struct DebugDayChip: View {
             }
             Button { model.debugResetDay() } label: {
                 Text("\(model.today.day) \(RU.monthsGen[model.today.month - 1])")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.mono(12, medium: true))
                     .frame(minWidth: 74)
-                    .foregroundStyle(model.isTimeShifted ? Color.white : Theme.textMuted)
+                    .foregroundStyle(model.isTimeShifted ? .white : Theme.inkFg)
             }
             Button { model.debugShiftDay(by: 1) } label: {
                 Image(systemName: "plus")
                     .frame(width: 40, height: 36)
             }
         }
-        .font(.system(size: 14, weight: .semibold))
-        .foregroundStyle(model.isTimeShifted ? .white : Theme.textMuted)
-        .background(Capsule().fill(model.isTimeShifted ? Theme.accent : Theme.subtle)
-            .shadow(color: .black.opacity(0.12), radius: 8, y: 2))
+        .font(.system(size: 13, weight: .semibold))
+        .foregroundStyle(model.isTimeShifted ? .white : Theme.inkMuted)
+        .background(Capsule()
+            .fill(model.isTimeShifted ? Theme.signal : Theme.inkSurface)
+            .overlay(Capsule().strokeBorder(
+                model.isTimeShifted ? Theme.signal : Theme.inkLine, lineWidth: 1))
+            .shadow(color: Theme.shadowTint.opacity(0.16), radius: 10, y: 3))
         .padding(.trailing, 16)
         // Выше чипа возврата: тестовый сдвиг дня не должен его перекрывать.
         .padding(.bottom, 80)
@@ -186,35 +198,31 @@ struct SprintCard: View {
             boundary
             // Полоска занятости — про деньги прихода; до входа денег в плане не было.
             if !sprint.isPrehistory { occupancyBand }
-            // Недостача обязана быть видна без тапа (П9); цвет нейтральный (МП8).
+            // Недостача обязана быть видна без тапа (П9): критичное — signal.
             if let s = sprint.shortfall {
                 Text("план не сходится · к \(s.date.day) \(RU.monthsGen[s.date.month - 1]) не хватает \(RU.money(s.amount))")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Theme.accent)
+                    .font(.mono(12, medium: true))
+                    .foregroundStyle(Theme.signal)
             }
             ForEach(sprint.weeks) { week in
                 // До входа открывать нечего — ни спринт, ни статьи дня.
                 WeekRow(week: week, onDayTap: sprint.isPrehistory ? nil : openDay)
                 if week.isExtra, !sprint.isPrehistory {
                     Text("дополнительная неделя · оплачена из плана")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Theme.textMuted)
+                        .font(.mono(12))
+                        .foregroundStyle(Theme.text3)
                 }
                 issueRow(week)
             }
             if sprint.blindNote {
                 Text("спринт идёт без раскладки — план слеп: выдач нет, взносы не собраны")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Theme.textMuted)
+                    .font(.sans(13))
+                    .foregroundStyle(Theme.text3)
                     .padding(.top, 2)
             }
         }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Theme.surface)
-                .strokeBorder(sprint.callToAction ? Theme.accent : Theme.line, lineWidth: 1)
-        )
+        .padding(16)
+        .caliperCard()
         .opacity((sprint.isConfirmed || sprint.isMissed || sprint.isPrehistory)
                  && sprint.weeks.allSatisfy(\.isPast) ? 0.6 : 1)
         .contentShape(Rectangle())
@@ -222,18 +230,19 @@ struct SprintCard: View {
         .onTapGesture { if !sprint.isPrehistory { openDetail() } }
     }
 
-    /// Выдача (С16, МП32): тихое действие у текущей финнедели разложенного спринта.
+    /// Выдача (С16, МП32): «запись» приложения — живое действие сейчас,
+    /// единственная signal-кнопка ленты.
     @ViewBuilder
     private func issueRow(_ week: TapeModel.Week) -> some View {
         if sprint.isConfirmed, week.isCurrent, let amount = week.issueAmount {
             if model.isIssued(weekStart: week.start) {
-                HStack(spacing: 4) {
+                HStack(spacing: 5) {
                     Image(systemName: "checkmark")
                         .font(.system(size: 10, weight: .semibold))
                     Text("выдано · \(RU.money(amount))")
+                        .font(.mono(12))
                 }
-                .font(.system(size: 12))
-                .foregroundStyle(Theme.textMuted)
+                .foregroundStyle(Theme.text3)
             } else {
                 // День выдачи — самое заметное на карточке: полноширинная кнопка.
                 Button {
@@ -243,13 +252,12 @@ struct SprintCard: View {
                         Text("Новая финнеделя")
                         Spacer()
                         Text("выдать \(RU.money(amount))")
+                            .font(.mono(13, medium: true))
+                            .tracking(0)
                     }
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 13)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.accent))
+                    .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(.caliper(.signal))
                 .padding(.vertical, 4)
             }
         }
@@ -263,20 +271,16 @@ struct SprintCard: View {
                 Text(sprint.isPrehistory
                      ? "\(sprint.start.day) \(RU.monthsGen[sprint.start.month - 1])"
                      : "\(sprint.start.day) \(RU.monthsGen[sprint.start.month - 1]) · \(sprint.incomeName)")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(sprint.isPrehistory ? Theme.textMuted : Theme.text)
+                    .font(.sans(17, .semibold))
+                    .foregroundStyle(sprint.isPrehistory ? Theme.text3 : Theme.text)
                 if !sprint.isPrehistory { subtitle }
             }
             Spacer()
             if sprint.callToAction {
                 Button(action: openLayout) {
                     Text("Разложить")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 9)
-                        .background(Capsule().fill(Theme.accent))
                 }
+                .buttonStyle(.caliper(.primary, compact: true))
             }
         }
     }
@@ -284,35 +288,35 @@ struct SprintCard: View {
     @ViewBuilder
     private var subtitle: some View {
         if sprint.isConfirmed {
-            HStack(spacing: 4) {
+            HStack(spacing: 5) {
                 Image(systemName: "checkmark")
                     .font(.system(size: 10, weight: .semibold))
                 Text("разложено · \(RU.money(sprint.incomeAmount))")
+                    .font(.mono(12))
             }
-            .font(.system(size: 12))
-            .foregroundStyle(Theme.textMuted)
+            .foregroundStyle(Theme.text3)
         } else if sprint.isMissed {
             Text("раскладки не было · план \(RU.money(sprint.incomeAmount))")
-                .font(.system(size: 12))
-                .foregroundStyle(Theme.textMuted)
+                .font(.mono(12))
+                .foregroundStyle(Theme.text3)
         } else {
             Text(sprint.callToAction
                  ? "пришло \(RU.money(sprint.incomeAmount)) · ждёт раскладки"
                  : "план \(RU.money(sprint.incomeAmount))")
-                .font(.system(size: 12))
-                .foregroundStyle(Theme.textMuted)
+                .font(.mono(12))
+                .foregroundStyle(Theme.text3)
         }
     }
 
     private var occupancyBand: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
-                Capsule().fill(Theme.accentSoft)
-                Capsule().fill(Theme.accent)
-                    .frame(width: max(4, geo.size.width * sprint.occupancy))
+                Capsule().fill(Theme.n200)
+                Capsule().fill(Theme.fill)
+                    .frame(width: max(6, geo.size.width * sprint.occupancy))
             }
         }
-        .frame(height: 4)
+        .frame(height: 6)
         .padding(.bottom, 4)
     }
 }
@@ -344,34 +348,40 @@ struct DayCell: View {
     let week: TapeModel.Week
 
     private var numberColor: Color {
-        if day.isToday { return Theme.accent }
-        if day.isPast || week.isPast { return Theme.textFaint }
+        // Сегодня — плейхед ленты: единственный signal-маркер положения.
+        if day.isToday { return Theme.signal }
+        if day.isPast || week.isPast { return Theme.textDisabled }
         return Theme.text
     }
 
     var body: some View {
-        VStack(spacing: 1) {
-            Text(RU.days[day.date.weekday - 1])
-                .font(.system(size: 10))
-                .foregroundStyle(Theme.textFaint)
+        VStack(spacing: 2) {
+            Text(RU.days[day.date.weekday - 1].uppercased())
+                .font(.mono(9))
+                .tracking(0.9)
+                .foregroundStyle(Theme.textDisabled)
             Text(String(day.date.day))
-                .font(.system(size: 15))
+                .font(.mono(14, medium: day.isToday))
                 .foregroundStyle(numberColor)
             ZStack {
                 Circle().fill(.clear).frame(width: 5, height: 5)
                 if day.incomeMarker {
-                    Circle().fill(Theme.accent).frame(width: 5, height: 5)
+                    Circle().fill(Theme.text).frame(width: 5, height: 5)
                 } else if day.paymentMarker {
-                    Circle().strokeBorder(Theme.accent, lineWidth: 1.2)
+                    Circle().strokeBorder(Theme.text, lineWidth: 1.2)
                         .frame(width: 5, height: 5)
                 }
             }
         }
         .padding(.vertical, 4)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(day.isToday ? Theme.accentSoft : .clear)
-        )
+        // Плейхед: короткая signal-черта под сегодняшней датой.
+        .overlay(alignment: .bottom) {
+            if day.isToday {
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(Theme.signal)
+                    .frame(width: 16, height: 2)
+            }
+        }
     }
 }
 
@@ -407,83 +417,79 @@ struct DayArticlesSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("\(date.day) \(RU.monthsGen[date.month - 1])")
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(.sans(22, .semibold))
+                    .tracking(-0.22)
                     .foregroundStyle(Theme.text)
                 Spacer()
                 Button { dismiss() } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(Theme.textMuted)
+                        .foregroundStyle(Theme.icon)
                         .tapTarget()
                 }
             }
 
             if let incomeNote {
-                HStack(spacing: 6) {
-                    Circle().fill(Theme.accent).frame(width: 5, height: 5)
+                HStack(spacing: 7) {
+                    Circle().fill(Theme.text).frame(width: 5, height: 5)
                     Text(incomeNote)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(Theme.accent)
+                        .font(.mono(12, medium: true))
+                        .foregroundStyle(Theme.text2)
                 }
             }
 
             if articles.isEmpty {
                 Text("статей на эту дату нет")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Theme.textFaint)
+                    .font(.sans(13))
+                    .foregroundStyle(Theme.textDisabled)
                     .padding(.vertical, 8)
             } else {
                 VStack(spacing: 0) {
                     ForEach(articles) { article in
                         Button { editingArticle = article } label: {
                             HStack(spacing: 8) {
-                                VStack(alignment: .leading, spacing: 2) {
+                                VStack(alignment: .leading, spacing: 3) {
                                     Text(article.name)
-                                        .font(.system(size: 15))
+                                        .font(.sans(16))
                                         .foregroundStyle(Theme.text)
                                     Text(note(article))
-                                        .font(.system(size: 12))
-                                        .foregroundStyle(Theme.textMuted)
+                                        .font(.mono(12))
+                                        .foregroundStyle(Theme.text3)
                                 }
                                 Spacer()
                                 if !isPast {
                                     Image(systemName: "chevron.right")
                                         .font(.system(size: 12, weight: .semibold))
-                                        .foregroundStyle(Theme.textFaint)
+                                        .foregroundStyle(Theme.iconMuted)
                                 }
                             }
-                            .padding(.vertical, 11)
-                            .padding(.horizontal, 14)
+                            .padding(.vertical, 12)
+                            .padding(.horizontal, 16)
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .disabled(isPast)
-                        if article.id != articles.last?.id { Divider().overlay(Theme.line) }
+                        if article.id != articles.last?.id { Divider().overlay(Theme.lineSoft) }
                     }
                 }
-                .background(RoundedRectangle(cornerRadius: 16).fill(Theme.surface)
-                    .strokeBorder(Theme.line, lineWidth: 1))
+                .caliperCard()
             }
 
             if isPast {
-                Text("прошлое — только чтение")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Theme.textFaint)
+                Cap("прошлое — только чтение")
             } else {
                 Button { addingArticle = true } label: {
                     Text("+ статья к этой дате")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(Theme.accent)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(Capsule().strokeBorder(Theme.accent, lineWidth: 1))
                 }
+                .buttonStyle(.caliper(.secondary))
             }
             Spacer(minLength: 0)
         }
         .padding(20)
         .background(Theme.bg)
         .presentationDetents([.medium, .large])
+        .presentationCornerRadius(22)
         .sheet(item: $editingArticle) { ArticleFormView(existing: $0) }
         .sheet(isPresented: $addingArticle) { ArticleFormView(prefillDate: date) }
     }

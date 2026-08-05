@@ -39,19 +39,24 @@ struct SprintDetailView: View {
                         } else {
                             SprintContributionRow(name: row.name, note: row.note, amount: row.amount)
                         }
-                        if row.id != rows.last?.id { Divider().overlay(Theme.line) }
+                        if row.id != rows.last?.id { Divider().overlay(Theme.lineSoft) }
                     }
                 }
-                .background(RoundedRectangle(cornerRadius: 16).fill(Theme.surface)
-                    .strokeBorder(Theme.line, lineWidth: 1))
+                .caliperCard()
 
                 if free > 0.5 {
-                    Text("свободные деньги прихода · \(RU.money(free))")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(Theme.accent)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(14)
-                        .background(RoundedRectangle(cornerRadius: 12).fill(Theme.accentSoft))
+                    // Свободные деньги — тёмная «инструментальная» панель.
+                    HStack(spacing: 8) {
+                        Text("свободные деньги прихода")
+                            .font(.sans(14, .medium))
+                            .foregroundStyle(Theme.inkFg)
+                        Spacer()
+                        Text(RU.money(free))
+                            .font(.mono(14, medium: true))
+                            .foregroundStyle(Theme.inkFg)
+                    }
+                    .padding(16)
+                    .inkPanel()
                 }
 
                 if !paused.isEmpty { pausedSection(paused) }
@@ -61,6 +66,7 @@ struct SprintDetailView: View {
             .padding(20)
         }
         .background(Theme.bg)
+        .presentationCornerRadius(22)
         .sheet(isPresented: $showArticleForm) { ArticleFormView() }
         .sheet(item: $editingArticle) { ArticleFormView(existing: $0) }
         .fullScreenCover(isPresented: $showLayout) {
@@ -83,22 +89,24 @@ struct SprintDetailView: View {
     // MARK: Заголовок
 
     private func header(_ confirmed: ConfirmedLayout?) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 3) {
             HStack {
                 Text(datesTitle)
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(.sans(22, .semibold))
+                    .monospacedDigit()
+                    .tracking(-0.22)
                     .foregroundStyle(Theme.text)
                 Spacer()
                 Button { dismiss() } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(Theme.textMuted)
+                        .foregroundStyle(Theme.icon)
                         .tapTarget()
                 }
             }
             Text(subtitle(confirmed))
-                .font(.system(size: 12))
-                .foregroundStyle(Theme.textMuted)
+                .font(.mono(12))
+                .foregroundStyle(Theme.text3)
         }
     }
 
@@ -179,31 +187,29 @@ struct SprintDetailView: View {
     // MARK: На паузе
 
     private func pausedSection(_ articles: [Article]) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("на паузе")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(Theme.textMuted)
-                .padding(.leading, 2)
+        VStack(alignment: .leading, spacing: 8) {
+            Cap("на паузе")
+                .padding(.leading, 4)
             VStack(spacing: 0) {
                 ForEach(articles, id: \.id) { article in
                     pausedRow(article)
-                    if article.id != articles.last?.id { Divider().overlay(Theme.line) }
+                    if article.id != articles.last?.id { Divider().overlay(Theme.lineSoft) }
                 }
             }
-            .background(RoundedRectangle(cornerRadius: 16).fill(Theme.surface)
-                .strokeBorder(Theme.line, lineWidth: 1))
+            .caliperCard()
         }
+        .padding(.top, 8)
     }
 
     private func pausedRow(_ article: Article) -> some View {
         HStack(spacing: 8) {
             Button { editingArticle = article } label: {
                 (Text(article.name)
-                    .font(.system(size: 15))
+                    .font(.sans(16))
                     .foregroundStyle(Theme.text)
                  + Text(" · \(pausedNote(article))")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Theme.textMuted))
+                    .font(.mono(12))
+                    .foregroundStyle(Theme.text3))
                     .lineLimit(2)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
@@ -214,16 +220,21 @@ struct SprintDetailView: View {
                 model.setPaused(articleId: article.id, paused: false)
             } label: {
                 Text("возобновить")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Theme.accent)
+                    .font(.sans(12, .semibold))
+                    .tracking(0.24)
+                    .foregroundStyle(Theme.text)
                     .padding(.horizontal, 12)
-                    .padding(.vertical, 7)
-                    .background(Capsule().fill(Theme.accentSoft))
-                    .tapPadded(visualHeight: 30)
+                    .frame(height: 32)
+                    .background(RoundedRectangle(cornerRadius: 8)
+                        .fill(Theme.surfaceRaised)
+                        .overlay(RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(Theme.lineStrong, lineWidth: 1.5)))
+                    .tapPadded(visualHeight: 32)
             }
+            .buttonStyle(.plain)
         }
-        .padding(.vertical, 11)
-        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .padding(.horizontal, 16)
     }
 
     private func pausedNote(_ article: Article) -> String {
@@ -241,53 +252,39 @@ struct SprintDetailView: View {
     // MARK: Действия
 
     private func actions(isConfirmed: Bool) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             if !isPast {
                 Button { showArticleForm = true } label: {
                     Text("+ статья")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(Theme.text)
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 12)
-                        .background(Capsule().fill(Theme.surface)
-                            .strokeBorder(Theme.line, lineWidth: 1))
                 }
+                .buttonStyle(.caliper(.secondary))
             }
             if isConfirmed {
                 Button { showLayout = true } label: {
                     Text("Раскладка · исполнение")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(Theme.accent)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(Capsule().strokeBorder(Theme.accent, lineWidth: 1))
                 }
+                .buttonStyle(.caliper(.secondary))
             } else if isPast {
                 // Прошёл без раскладки: восстановления задним числом нет (С15а).
                 Text("спринт прошёл без раскладки — числа не застыли")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Theme.textMuted)
+                    .font(.sans(13))
+                    .foregroundStyle(Theme.text3)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 12)
             } else if isFuture {
                 // Приход впереди: раскладку можно посмотреть шаблоном, но не подтвердить.
                 Button { showLayout = true } label: {
                     Text("Шаблон раскладки")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(Theme.accent)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(Capsule().strokeBorder(Theme.accent, lineWidth: 1))
                 }
+                .buttonStyle(.caliper(.secondary))
             } else {
                 Button { showLayout = true } label: {
                     Text("Разложить")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(Capsule().fill(Theme.accent))
                 }
+                .buttonStyle(.caliper(.primary))
             }
         }
         .padding(.top, 4)
@@ -304,24 +301,24 @@ private struct SprintContributionRow: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(name).font(.system(size: 15)).foregroundStyle(Theme.text)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(name).font(.sans(16)).foregroundStyle(Theme.text)
                 if let note {
-                    Text(note).font(.system(size: 12)).foregroundStyle(Theme.textMuted)
+                    Text(note).font(.mono(12)).foregroundStyle(Theme.text3)
                 }
             }
             Spacer()
             Text(RU.money(amount))
-                .font(.system(size: 15, weight: .medium))
+                .font(.mono(14, medium: true))
                 .foregroundStyle(Theme.text)
             if editable {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Theme.textFaint)
+                    .foregroundStyle(Theme.iconMuted)
             }
         }
-        .padding(.vertical, 11)
-        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .padding(.horizontal, 16)
         .contentShape(Rectangle())
     }
 }

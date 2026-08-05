@@ -91,12 +91,12 @@ struct ArticleFormView: View {
 
                 card {
                     TextField("имя", text: $name)
-                        .font(.system(size: 17, weight: .medium))
+                        .font(.sans(17, .medium))
                         .foregroundStyle(Theme.text)
                         .focused($focus, equals: .name)
-                        .padding(.horizontal, 14)
+                        .padding(.horizontal, 16)
                         .tapFocuses($focus, equals: .name, minHeight: 48)
-                    Divider().overlay(Theme.line)
+                    Divider().overlay(Theme.lineSoft)
                     numberRow("сумма", text: $amountText, field: .amount)
                 }
 
@@ -111,27 +111,24 @@ struct ArticleFormView: View {
                     card {
                         numberRow(weeklySpeed ? "порция в неделю" : "скорость в месяц",
                                   text: $speedText, field: .speed)
-                        Divider().overlay(Theme.line)
-                        Picker("единица скорости", selection: $weeklySpeed) {
-                            Text("в месяц").tag(false)
-                            Text("в неделю").tag(true)
-                        }
-                        .pickerStyle(.segmented)
-                        .padding(10)
+                        Divider().overlay(Theme.lineSoft)
+                        CaliperSegmented(selection: $weeklySpeed,
+                                         options: [(false, "в месяц"), (true, "в неделю")])
+                            .padding(12)
                     }
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(kindCaption(draft: draft, preview: preview))
-                        .font(.system(size: 12))
-                        .foregroundStyle(Theme.textMuted)
+                        .font(.sans(13))
+                        .foregroundStyle(Theme.text2)
                     // Скорость выше цели легальна (движок режет взнос до остатка),
                     // но почти наверняка опечатка — говорим, что получится.
                     if let draft, case .intent(let target, let speed) = draft.kind,
                        speed > target {
                         Text("скорость больше цели: лишнего не отложится — замысел закроется, как только соберётся \(RU.money(target))")
-                            .font(.system(size: 12))
-                            .foregroundStyle(Theme.textMuted)
+                            .font(.sans(12))
+                            .foregroundStyle(Theme.text3)
                     }
                     if let preview {
                         consequenceLine(preview.recommendation, draft: draft)
@@ -145,11 +142,12 @@ struct ArticleFormView: View {
             .padding(20)
         }
         .background(Theme.bg)
-        .animation(.easeInOut(duration: 0.15), value: hasDate)
-        .animation(.easeInOut(duration: 0.15), value: monthly)
-        .animation(.easeInOut(duration: 0.15), value: isPayment)
-        .animation(.easeInOut(duration: 0.15), value: parsedSpeed != nil)
-        .animation(.easeInOut(duration: 0.15), value: weeklySpeed)
+        .presentationCornerRadius(22)
+        .animation(Theme.ease(), value: hasDate)
+        .animation(Theme.ease(), value: monthly)
+        .animation(Theme.ease(), value: isPayment)
+        .animation(Theme.ease(), value: parsedSpeed != nil)
+        .animation(Theme.ease(), value: weeklySpeed)
         .onChange(of: monthly) { _, on in
             if on { monthlyDay = min(Self.civil(from: dueDate).day, 28) }
         }
@@ -158,22 +156,23 @@ struct ArticleFormView: View {
     // MARK: Шапка
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 3) {
             HStack {
                 Text(existing == nil ? "Новая статья" : "Статья")
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(.sans(22, .semibold))
+                    .tracking(-0.22)
                     .foregroundStyle(Theme.text)
                 Spacer()
                 Button { dismiss() } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(Theme.textMuted)
+                        .foregroundStyle(Theme.icon)
                         .tapTarget()
                 }
             }
             Text(subtitle)
-                .font(.system(size: 12))
-                .foregroundStyle(Theme.textMuted)
+                .font(.sans(13))
+                .foregroundStyle(Theme.text3)
         }
     }
 
@@ -189,62 +188,62 @@ struct ArticleFormView: View {
     @ViewBuilder
     private var dateSection: some View {
         SwitchRow(isOn: $hasDate) {
-            Text("к дате").font(.system(size: 15)).foregroundStyle(Theme.text)
+            Text("к дате").font(.sans(16)).foregroundStyle(Theme.text)
         }
         .padding(.vertical, 11)
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 16)
 
         if hasDate {
             if !monthly {
-                Divider().overlay(Theme.line)
+                Divider().overlay(Theme.lineSoft)
                 HStack {
-                    Text("дата").font(.system(size: 15)).foregroundStyle(Theme.textMuted)
+                    Text("дата").font(.sans(15)).foregroundStyle(Theme.text3)
                     Spacer()
                     DatePicker("", selection: $dueDate, displayedComponents: .date)
                         .labelsHidden()
                         .datePickerStyle(.compact)
                         .environment(\.locale, Locale(identifier: "ru_RU"))
-                        .tint(Theme.accent)
+                        .tint(Theme.fill)
                 }
                 .padding(.vertical, 6)
-                .padding(.horizontal, 14)
+                .padding(.horizontal, 16)
             }
 
-            Divider().overlay(Theme.line)
+            Divider().overlay(Theme.lineSoft)
             SwitchRow(isOn: $monthly) {
                 Text("повторяется ежемесячно")
-                    .font(.system(size: 15)).foregroundStyle(Theme.text)
+                    .font(.sans(16)).foregroundStyle(Theme.text)
             }
             .padding(.vertical, 11)
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 16)
 
             if monthly {
-                Divider().overlay(Theme.line)
+                Divider().overlay(Theme.lineSoft)
                 HStack {
                     Text("число месяца")
-                        .font(.system(size: 15))
+                        .font(.sans(16))
                         .foregroundStyle(Theme.text)
                     Spacer()
                     DayGridButton(day: $monthlyDay, suffix: "-го")
                 }
                 .padding(.vertical, 8)
-                .padding(.horizontal, 14)
+                .padding(.horizontal, 16)
             }
 
             if isPayment && !monthly {
-                Divider().overlay(Theme.line)
+                Divider().overlay(Theme.lineSoft)
                 SwitchRow(isOn: $prepared) {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: 3) {
                         Text("готовиться заранее")
-                            .font(.system(size: 15)).foregroundStyle(Theme.text)
+                            .font(.sans(16)).foregroundStyle(Theme.text)
                         Text(prepared ? "взнос соберётся к дате"
                                       : "оплата из прихода своего спринта")
-                            .font(.system(size: 12))
-                            .foregroundStyle(Theme.textMuted)
+                            .font(.mono(12))
+                            .foregroundStyle(Theme.text3)
                     }
                 }
                 .padding(.vertical, 11)
-                .padding(.horizontal, 14)
+                .padding(.horizontal, 16)
             }
         }
     }
@@ -254,12 +253,9 @@ struct ArticleFormView: View {
     private var saveButton: some View {
         Button(action: save) {
             Text("Сохранить")
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(canSave ? Color.white : Theme.textMuted)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(Capsule().fill(canSave ? Theme.accent : Theme.line))
         }
+        .buttonStyle(.caliper(.primary))
         .disabled(!canSave)
         .padding(.top, 4)
     }
@@ -281,13 +277,15 @@ struct ArticleFormView: View {
                                   note: isPaused ? "скорость вернётся со следующей раскладки"
                                                  : "скорость временно ноль, строка останется")
                     }
-                    Divider().overlay(Theme.line)
+                    Divider().overlay(Theme.lineSoft)
                 }
                 Button {
                     model.closeArticle(articleId: existing.id)
                     dismiss()
                 } label: {
-                    actionRow("Закрыть статью", note: "собранное выйдет из плана")
+                    // Закрытие — деструктивное: единственный signal-текст формы.
+                    actionRow("Закрыть статью", note: "собранное выйдет из плана",
+                              titleColor: Theme.signal)
                 }
             }
             .padding(.top, 8)
@@ -323,12 +321,12 @@ struct ArticleFormView: View {
     private func consequenceLine(_ rec: Recommendation, draft: Article?) -> some View {
         if rec.fits {
             Text("план помещается · неделя останется \(RU.money(weeklySum(with: draft)))")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(Theme.textMuted)
+                .font(.mono(12, medium: true))
+                .foregroundStyle(Theme.text2)
         } else if let s = rec.shortfalls.first {
             Text("не помещается: к \(s.date.day) \(RU.monthsGen[s.date.month - 1]) не хватает \(RU.money(s.amount))")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(Theme.accent)
+                .font(.mono(12, medium: true))
+                .foregroundStyle(Theme.signal)
         }
     }
 
@@ -432,35 +430,35 @@ struct ArticleFormView: View {
 
     private func card<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         VStack(spacing: 0, content: content)
-            .background(RoundedRectangle(cornerRadius: 16).fill(Theme.surface)
-                .strokeBorder(Theme.line, lineWidth: 1))
+            .caliperCard()
     }
 
     private func numberRow(_ label: String, text: Binding<String>,
                            field: Field) -> some View {
         HStack {
-            Text(label).font(.system(size: 15)).foregroundStyle(Theme.textMuted)
+            Text(label).font(.sans(15)).foregroundStyle(Theme.text3)
                 .fixedSize()
             TextField("", text: text)
                 .keyboardType(.numberPad)
                 .multilineTextAlignment(.trailing)
-                .font(.system(size: 17, weight: .semibold))
+                .font(.mono(17, medium: true))
                 .foregroundStyle(Theme.text)
                 .focused($focus, equals: field)
                 .frame(maxWidth: .infinity)
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 16)
         // Тап по подписи и любому месту строки фокусирует поле.
         .tapFocuses($focus, equals: field, minHeight: 48)
     }
 
-    private func actionRow(_ title: String, note: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title).font(.system(size: 15)).foregroundStyle(Theme.text)
-            Text(note).font(.system(size: 12)).foregroundStyle(Theme.textMuted)
+    private func actionRow(_ title: String, note: String,
+                           titleColor: Color = Theme.text) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title).font(.sans(16)).foregroundStyle(titleColor)
+            Text(note).font(.mono(12)).foregroundStyle(Theme.text3)
         }
-        .padding(.vertical, 11)
-        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .padding(.horizontal, 16)
         .tapRow()
     }
 
